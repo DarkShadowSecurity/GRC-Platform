@@ -1,0 +1,23 @@
+[Unit]
+Description=GRC Vault — Governance, Risk & Compliance Platform
+After=network.target
+
+[Service]
+Type=simple
+User=grcvault
+Group=grcvault
+WorkingDirectory=/opt/grc-vault
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=grc-vault
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOST=0.0.0.0
+# Uncomment to customize database location:
+# Environment=DB_PATH=/var/lib/grc-vault/data
+
+[Install]
+WantedBy=multi-user.target

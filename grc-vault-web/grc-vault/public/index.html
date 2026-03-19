@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRC Vault — Governance, Risk & Compliance</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%233ea89f'/><text x='50' y='68' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold' font-size='44'>GV</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head" onclick="toggleSidebar()">
+        <div class="sidebar-icon">GV</div>
+        <div class="sidebar-title">
+          <h1>GRC Vault</h1>
+          <small>Enterprise v2.0</small>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebarNav"></nav>
+      <div class="sidebar-foot">
+        <div class="status-dot off" id="statusDot"></div>
+        <span id="statusTxt">Local Database</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div id="content">
+        <div class="page" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+          <p style="color:var(--t3);font-size:14px">Loading GRC Vault...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
