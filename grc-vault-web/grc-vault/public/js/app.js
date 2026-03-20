@@ -748,7 +748,10 @@ function _govReqsMet(pol) {
 function pgGov() {
   const items = _govItems();
   const activeFws = S.config.activeFrameworks || [];
-  const types = ['all','Policy','Procedure','Standard','Plan','Guideline'];
+  const typeSet = new Set();
+  for (const i of items) typeSet.add(i.type);
+  const typeOrder = ['Policy','Procedure','Standard','Plan','Guideline','Diagram','Inventory','Agreement','Report','Record','Evidence','Register'];
+  const types = ['all'].concat(typeOrder.filter(t => typeSet.has(t)));
 
   let totalReqs = 0, metReqs = 0, totalDocs = items.length, completeDocs = 0;
   for (const item of items) {
@@ -783,7 +786,8 @@ function pgGov() {
     const fws = Object.keys(item.fw).filter(fw => activeFws.length === 0 || activeFws.includes(fw));
     let fwBadges = '';
     for (const fw of fws) fwBadges += '<span class="badge b-accent" style="font-size:9px;margin:1px 2px">' + esc(fw) + '</span>';
-    const typeBadge = item.type === 'Policy' ? 'b-info' : item.type === 'Procedure' ? 'b-purple' : item.type === 'Plan' ? 'b-cyan' : item.type === 'Guideline' ? 'b-medium' : 'b-accent';
+    const _tb = {'Policy':'b-info','Procedure':'b-purple','Standard':'b-accent','Plan':'b-cyan','Guideline':'b-medium','Diagram':'b-info','Inventory':'b-accent','Agreement':'b-purple','Report':'b-high','Record':'b-low','Evidence':'b-cyan','Register':'b-medium'};
+    const typeBadge = _tb[item.type] || 'b-neutral';
 
     rows += '<tr style="cursor:pointer" onclick="modalGovEvidence(\'' + esc(item.t).replace(/'/g, "\\'") + '\')">'
       + '<td class="cell-bold">' + esc(item.t) + '</td>'
@@ -795,8 +799,13 @@ function pgGov() {
 
   let html = '<div class="page">'
     + '<div class="page-head"><div><h2>Governance</h2><p>Required artifacts mapped to your compliance frameworks \u2014 provide evidence for each requirement</p></div></div>'
-    + '<div class="grid g4 mb-24">'
-    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + totalDocs + '</div><div class="stat-lbl">Required Documents</div></div>'
+    const docPolicies = items.filter(i => i.type === 'Policy').length;
+    const docEvidence = items.filter(i => i.type === 'Evidence' || i.type === 'Record' || i.type === 'Register').length;
+    const docReports = items.filter(i => i.type === 'Report' || i.type === 'Diagram' || i.type === 'Inventory').length;
+    const docOther = items.filter(i => i.type === 'Procedure' || i.type === 'Standard' || i.type === 'Plan' || i.type === 'Guideline' || i.type === 'Agreement').length;
+
+    html += '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + totalDocs + '</div><div class="stat-lbl">Total Artifacts</div></div>'
     + '<div class="card stat"><div class="stat-val" style="color:var(--green)">' + completeDocs + '</div><div class="stat-lbl">Complete</div></div>'
     + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + metReqs + '/' + totalReqs + '</div><div class="stat-lbl">Requirements Met</div></div>'
     + '<div class="card stat"><div class="stat-val" style="color:' + (reqPct >= 80 ? 'var(--green)' : reqPct >= 50 ? 'var(--yellow)' : 'var(--red)') + '">' + reqPct + '%</div><div class="stat-lbl">Overall Progress</div></div></div>';
