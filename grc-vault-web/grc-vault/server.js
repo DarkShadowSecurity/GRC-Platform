@@ -4,6 +4,7 @@ const fs = require("fs");
 const cors = require("cors");
 const Datastore = require("nedb-promises");
 const { v4: uuidv4 } = require("uuid");
+const multer = require("multer");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,15 @@ const db = {};
 STORES.forEach((name) => {
   db[name] = Datastore.create({ filename: path.join(dbDir, `${name}.db`), autoload: true, timestampData: true });
 });
+
+// ─── File Upload Setup ────────────────────────────────────────────────────
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: uploadDir,
+  filename: (req, file, cb) => cb(null, uuidv4() + path.extname(file.originalname)),
+});
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 // ─── Middleware ─────────────────────────────────────────────────────────────
 app.use(cors());
@@ -137,6 +147,19 @@ app.post("/api/proxy/test", async (req, res) => {
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
+});
+
+// ─── File Upload/Download ─────────────────────────────────────────────────
+app.post("/api/upload", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: "No file provided" });
+  res.json({ ok: true, data: { filename: req.file.filename, originalName: req.file.originalname, size: req.file.size } });
+});
+
+app.get("/api/uploads/:filename", (req, res) => {
+  const safe = path.basename(req.params.filename);
+  const filePath = path.join(uploadDir, safe);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ ok: false, error: "File not found" });
+  res.sendFile(filePath);
 });
 
 // SPA fallback — serve index.html for any non-API route
