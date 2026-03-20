@@ -724,33 +724,164 @@ async function delCtrl(id) { await API.del('controls',id); S.controls=S.controls
 // ═══════════════════════════════════════════════════════════════════════════
 // GOVERNANCE
 // ═══════════════════════════════════════════════════════════════════════════
+let govFilter = 'all';
+
 function pgGov() {
-  return `<div class="page">
-    <div class="page-head"><div><h2>Governance</h2><p>Manage policies, procedures, and governance documentation</p></div><div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewPol()">${I.plus} New Document</button></div></div>
-    <div class="grid g3 mb-24">
-      <div class="card stat"><div class="stat-val" style="color:var(--blue)">${S.policies.filter(p=>p.type==='Policy').length}</div><div class="stat-lbl">Policies</div></div>
-      <div class="card stat"><div class="stat-val" style="color:var(--purple)">${S.policies.filter(p=>p.type==='Procedure').length}</div><div class="stat-lbl">Procedures</div></div>
-      <div class="card stat"><div class="stat-val" style="color:var(--accent)">${S.policies.filter(p=>p.type==='Standard').length}</div><div class="stat-lbl">Standards</div></div>
-    </div>
-    <div class="table-wrap"><table><thead><tr><th>Document</th><th>Type</th><th>Version</th><th>Status</th><th>Owner</th><th>Review Date</th><th class="cell-actions"></th></tr></thead><tbody>
-      ${S.policies.length===0?'<tr><td colspan="7"><div class="empty"><p>No governance documents</p></div></td></tr>':
-        S.policies.map(p=>`<tr><td class="cell-bold">${esc(p.title)}</td><td><span class="badge ${p.type==='Policy'?'b-info':p.type==='Procedure'?'b-purple':'b-accent'}">${p.type}</span></td><td class="cell-mono">v${esc(p.version)}</td><td><span class="badge ${statusCls(p.status)}">${p.status}</span></td><td class="cell-dim">${esc(p.owner||'—')}</td><td class="cell-mono">${p.reviewDate||'—'}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="delPol('${p._id}')">${I.trash}</button></td></tr>`).join('')}
-    </tbody></table></div></div>`;
+  const activeFws = S.config.activeFrameworks || [];
+  const polCount = S.policies.filter(p => p.type === 'Policy').length;
+  const procCount = S.policies.filter(p => p.type === 'Procedure').length;
+  const stdCount = S.policies.filter(p => p.type === 'Standard' || p.type === 'Plan' || p.type === 'Guideline').length;
+  const approved = S.policies.filter(p => p.status === 'Approved').length;
+  const total = S.policies.length;
+  const pct = total ? Math.round(approved / total * 100) : 0;
+
+  const types = ['all','Policy','Procedure','Standard','Plan','Guideline'];
+  let filterPills = '';
+  for (const t of types) {
+    const label = t === 'all' ? 'All' : t + 's';
+    const cnt = t === 'all' ? total : S.policies.filter(p => p.type === t).length;
+    filterPills += '<button class="pill ' + (govFilter === t ? 'on' : '') + '" onclick="govFilter=\'' + t + '\';render()">' + label + ' (' + cnt + ')</button>';
+  }
+
+  const filtered = govFilter === 'all' ? S.policies : S.policies.filter(p => p.type === govFilter);
+
+  let rows = '';
+  if (filtered.length === 0) {
+    rows = '<tr><td colspan="8"><div class="empty"><p>No governance documents \u2014 click Populate Required Documents to get started</p></div></td></tr>';
+  } else {
+    for (const p of filtered) {
+      const fwList = p.frameworks || [];
+      let fwBadges = '';
+      if (fwList.length > 0) {
+        for (const fw of fwList) fwBadges += '<span class="badge b-accent" style="font-size:9px;margin:1px 2px">' + esc(fw) + '</span>';
+      } else {
+        fwBadges = '<span style="color:var(--t4);font-size:11px">\u2014</span>';
+      }
+      const typeBadge = p.type === 'Policy' ? 'b-info' : p.type === 'Procedure' ? 'b-purple' : p.type === 'Plan' ? 'b-cyan' : p.type === 'Guideline' ? 'b-medium' : 'b-accent';
+      rows += '<tr style="cursor:pointer" onclick="modalGovDetail(\'' + p._id + '\')">'
+        + '<td class="cell-bold">' + esc(p.title) + '</td>'
+        + '<td><span class="badge ' + typeBadge + '">' + esc(p.type) + '</span></td>'
+        + '<td>' + fwBadges + '</td>'
+        + '<td><select class="ctrl-status-sel" onclick="event.stopPropagation()" onchange="changeGovStatus(\'' + p._id + '\',this.value)">'
+        + '<option' + (p.status === 'Draft' ? ' selected' : '') + '>Draft</option>'
+        + '<option' + (p.status === 'Review' ? ' selected' : '') + '>Review</option>'
+        + '<option' + (p.status === 'Approved' ? ' selected' : '') + '>Approved</option>'
+        + '<option' + (p.status === 'Retired' ? ' selected' : '') + '>Retired</option></select></td>'
+        + '<td class="cell-dim">' + esc(p.owner || '\u2014') + '</td>'
+        + '<td class="cell-mono">' + (p.reviewDate || '\u2014') + '</td>'
+        + '<td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delPol(\'' + p._id + '\')">' + I.trash + '</button></td></tr>';
+    }
+  }
+
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>Governance</h2><p>Required policies, procedures, standards, and plans mapped to your compliance frameworks</p></div>'
+    + '<div class="page-head-actions"><button class="btn btn-secondary" onclick="populateGovernance()">' + I.download + ' Populate Required Documents</button>'
+    + '<button class="btn btn-primary" onclick="modalNewPol()">' + I.plus + ' New Document</button></div></div>'
+    + '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + polCount + '</div><div class="stat-lbl">Policies</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--purple)">' + procCount + '</div><div class="stat-lbl">Procedures</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + stdCount + '</div><div class="stat-lbl">Standards / Plans</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--green)">' + pct + '%</div><div class="stat-lbl">Approved</div></div></div>';
+
+  if (total > 0) {
+    html += '<div class="card mb-24"><div class="card-head"><h3>Approval Progress</h3><span class="cell-mono" style="color:var(--green)">' + approved + '/' + total + '</span></div>'
+      + '<div class="pbar" style="height:8px"><div class="pfill" style="width:' + pct + '%;background:var(--green)"></div></div></div>';
+  }
+
+  html += '<div class="pills mb-24">' + filterPills + '</div>'
+    + '<div class="table-wrap"><table><thead><tr><th>Document</th><th>Type</th><th>Applies To</th><th>Status</th><th>Owner</th><th>Review Date</th><th class="cell-actions"></th></tr></thead><tbody>'
+    + rows + '</tbody></table></div></div>';
+  return html;
+}
+
+async function populateGovernance() {
+  const activeFws = S.config.activeFrameworks || [];
+  let created = 0;
+  for (const item of GOV_ITEMS) {
+    const applicableFws = Object.keys(item.fw).filter(fw => activeFws.length === 0 || activeFws.includes(fw));
+    if (applicableFws.length === 0) continue;
+    const exists = S.policies.find(p => p.title === item.t);
+    if (!exists) {
+      const controlRefs = applicableFws.map(fw => fw + ': ' + item.fw[fw].join(', ')).join(' | ');
+      const doc = { _id: uid(), title: item.t, type: item.type, status: 'Draft', version: '1.0', owner: '', reviewDate: '', content: '', frameworks: applicableFws, controlRefs: controlRefs };
+      await API.create('policies', doc);
+      S.policies.push(doc);
+      created++;
+    } else if (!exists.frameworks || exists.frameworks.length === 0) {
+      exists.frameworks = applicableFws;
+      exists.controlRefs = applicableFws.map(fw => fw + ': ' + item.fw[fw].join(', ')).join(' | ');
+      await API.update('policies', exists._id, { frameworks: exists.frameworks, controlRefs: exists.controlRefs });
+    }
+  }
+  if (created > 0) toast(created + ' governance documents populated');
+  else toast('All required documents already exist');
+  render();
+}
+
+async function changeGovStatus(id, newStatus) {
+  const pol = S.policies.find(p => p._id === id);
+  if (!pol) return;
+  pol.status = newStatus;
+  await API.update('policies', id, { status: newStatus });
+  render();
+}
+
+function modalGovDetail(id) {
+  const p = S.policies.find(x => x._id === id);
+  if (!p) return;
+  const fwList = p.frameworks || [];
+  let fwBadges = '';
+  if (fwList.length > 0) {
+    for (const fw of fwList) fwBadges += '<span class="badge b-accent" style="margin:2px 3px">' + esc(fw) + '</span>';
+  } else {
+    fwBadges = '<span style="color:var(--t4)">No frameworks linked</span>';
+  }
+  const ctrlRefs = p.controlRefs || '';
+  let ctrlRefHtml = '';
+  if (ctrlRefs) {
+    const parts = ctrlRefs.split(' | ');
+    for (const part of parts) {
+      ctrlRefHtml += '<div style="font-size:12px;color:var(--t2);line-height:1.8;padding:2px 0">' + esc(part) + '</div>';
+    }
+  }
+  modal(esc(p.title),
+    '<div class="fr fr4" style="margin-bottom:18px">'
+    + '<div><div class="fl">Type</div><div style="margin-top:5px"><span class="badge ' + (p.type === 'Policy' ? 'b-info' : p.type === 'Procedure' ? 'b-purple' : 'b-accent') + '">' + esc(p.type) + '</span></div></div>'
+    + '<div><div class="fl">Status</div><div style="margin-top:5px"><span class="badge ' + statusCls(p.status) + '">' + p.status + '</span></div></div>'
+    + '<div><div class="fl">Version</div><div style="margin-top:5px">v' + esc(p.version) + '</div></div>'
+    + '<div><div class="fl">Review Date</div><div style="margin-top:5px">' + (p.reviewDate || '\u2014') + '</div></div></div>'
+    + '<div style="margin-bottom:14px"><div class="fl" style="margin-bottom:6px">Applies To Frameworks</div>' + fwBadges + '</div>'
+    + (ctrlRefHtml ? '<div class="card" style="padding:14px;background:var(--bg-input);margin-bottom:14px"><div class="fl" style="margin-bottom:6px">Required By Controls</div>' + ctrlRefHtml + '</div>' : '')
+    + (p.owner ? '<div style="font-size:13px;color:var(--t2);margin-bottom:8px"><strong>Owner:</strong> ' + esc(p.owner) + '</div>' : '')
+    + (p.content ? '<div style="font-size:13px;color:var(--t2);line-height:1.7;padding:14px 0;border-top:1px solid var(--border-0)">' + esc(p.content) + '</div>' : ''),
+    'lg');
 }
 
 function modalNewPol() {
-  modal('New Governance Document',`
-    <div class="fg"><label class="fl">Title</label><input class="fi" id="pTi" placeholder="e.g., Information Security Policy"></div>
-    <div class="fr fr3"><div class="fg"><label class="fl">Type</label><select class="fs" id="pTy"><option>Policy</option><option>Procedure</option><option>Standard</option><option>Guideline</option><option>Plan</option></select></div><div class="fg"><label class="fl">Status</label><select class="fs" id="pSt"><option>Draft</option><option>Review</option><option>Approved</option><option>Retired</option></select></div><div class="fg"><label class="fl">Version</label><input class="fi" id="pVr" value="1.0"></div></div>
-    <div class="fr fr2"><div class="fg"><label class="fl">Owner</label><input class="fi" id="pOw" placeholder="Document owner"></div><div class="fg"><label class="fl">Review Date</label><input class="fi" id="pRd" type="date"></div></div>
-    <div class="fg"><label class="fl">Content / Summary</label><textarea class="ft" id="pCo" placeholder="Document content..." style="min-height:120px"></textarea></div>
-  `,'md',`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePol()">Save Document</button>`);
+  const activeFws = S.config.activeFrameworks || [];
+  const allFws = Object.keys(FW);
+  let fwOpts = '';
+  for (const fw of allFws) {
+    const checked = activeFws.includes(fw) ? ' checked' : '';
+    fwOpts += '<label class="fw-check-inline" style="margin-right:12px"><input type="checkbox" class="pFwCb" value="' + esc(fw) + '"' + checked + '> <span>' + esc(fw) + '</span></label>';
+  }
+  modal('New Governance Document',
+    '<div class="fg"><label class="fl">Title</label><input class="fi" id="pTi" placeholder="e.g., Information Security Policy"></div>'
+    + '<div class="fr fr3"><div class="fg"><label class="fl">Type</label><select class="fs" id="pTy"><option>Policy</option><option>Procedure</option><option>Standard</option><option>Guideline</option><option>Plan</option></select></div><div class="fg"><label class="fl">Status</label><select class="fs" id="pSt"><option>Draft</option><option>Review</option><option>Approved</option><option>Retired</option></select></div><div class="fg"><label class="fl">Version</label><input class="fi" id="pVr" value="1.0"></div></div>'
+    + '<div class="fg"><label class="fl">Applies To Frameworks</label><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">' + fwOpts + '</div></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Owner</label><input class="fi" id="pOw" placeholder="Document owner"></div><div class="fg"><label class="fl">Review Date</label><input class="fi" id="pRd" type="date"></div></div>'
+    + '<div class="fg"><label class="fl">Content / Summary</label><textarea class="ft" id="pCo" placeholder="Document content..." style="min-height:120px"></textarea></div>',
+    'md',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePol()">Save Document</button>');
 }
 
 async function savePol() {
-  const t=$('#pTi').value.trim(); if(!t) return;
-  const doc={_id:uid(),title:t,type:$('#pTy').value,status:$('#pSt').value,version:$('#pVr').value,owner:$('#pOw').value,reviewDate:$('#pRd').value,content:$('#pCo').value};
-  await API.create('policies',doc); S.policies.unshift(doc); closeModal(); render(); toast('Document saved');
+  const t = document.querySelector('#pTi').value.trim(); if (!t) return;
+  const fwCbs = document.querySelectorAll('.pFwCb:checked');
+  const frameworks = [];
+  fwCbs.forEach(cb => frameworks.push(cb.value));
+  const doc = { _id: uid(), title: t, type: document.querySelector('#pTy').value, status: document.querySelector('#pSt').value, version: document.querySelector('#pVr').value, owner: document.querySelector('#pOw').value, reviewDate: document.querySelector('#pRd').value, content: document.querySelector('#pCo').value, frameworks: frameworks, controlRefs: '' };
+  await API.create('policies', doc); S.policies.unshift(doc); closeModal(); render(); toast('Document saved');
 }
 
 async function delPol(id) { await API.del('policies',id); S.policies=S.policies.filter(p=>p._id!==id); render(); }

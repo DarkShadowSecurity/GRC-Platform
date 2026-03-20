@@ -712,3 +712,65 @@ const FW = {
     ]
   }
 };
+
+// ─── Required Governance Documents per Framework ─────────────────────────
+// Each item: { t:title, type:document type, fw:{ framework: [controlIds] } }
+const GOV_ITEMS = [
+  // ── POLICIES ──────────────────────────────────────────────────────────
+  {t:"Information Security Policy",type:"Policy",fw:{"NIST CSF":["ID.GV-1"],"ISO 27001":["A.5.1.1","A.5.1.2"],"SOC 2":["CC1.1"],"HIPAA":["§164.308(a)(1)(i)"],"PCI DSS":["Req 12.1"],"GDPR":["Art.24"],"CMMC":["CA.L2-3.12.1"]}},
+  {t:"Access Control Policy",type:"Policy",fw:{"NIST CSF":["PR.AC-1","PR.AC-4"],"ISO 27001":["A.9.1.1","A.9.1.2"],"SOC 2":["CC6.1","CC6.2"],"HIPAA":["§164.312(a)(1)"],"PCI DSS":["Req 7.1","Req 8.1"],"GDPR":["Art.32"],"CMMC":["AC.L2-3.1.1","AC.L2-3.1.2"]}},
+  {t:"Data Classification Policy",type:"Policy",fw:{"ISO 27001":["A.8.2.1","A.8.2.2"],"SOC 2":["CC6.1"],"PCI DSS":["Req 3.1"],"GDPR":["Art.9"],"CMMC":["MP.L2-3.8.1"]}},
+  {t:"Acceptable Use Policy",type:"Policy",fw:{"ISO 27001":["A.8.1.3"],"SOC 2":["CC1.1"],"PCI DSS":["Req 12.2"],"CMMC":["AT.L2-3.2.1"]}},
+  {t:"Privacy Policy & Notice",type:"Policy",fw:{"GDPR":["Art.12","Art.13","Art.14"],"HIPAA":["§164.312(c)(1)"],"SOC 2":["P1.1","P1.2"]}},
+  {t:"Encryption & Cryptography Policy",type:"Policy",fw:{"ISO 27001":["A.10.1.1","A.10.1.2"],"PCI DSS":["Req 3.5","Req 4.1"],"HIPAA":["§164.312(a)(2)(iv)","§164.312(e)(2)(ii)"],"GDPR":["Art.32"],"CMMC":["SC.L2-3.13.11"]}},
+  {t:"Physical Security Policy",type:"Policy",fw:{"ISO 27001":["A.11.1.1","A.11.1.2"],"HIPAA":["§164.310(a)(1)","§164.310(a)(2)(ii)"],"PCI DSS":["Req 9.1"],"CMMC":["PE.L2-3.10.1","PE.L2-3.10.2"]}},
+  {t:"Network Security Policy",type:"Policy",fw:{"NIST CSF":["PR.AC-5","PR.PT-4"],"ISO 27001":["A.13.1.1","A.13.1.3"],"PCI DSS":["Req 1.1","Req 1.2"],"CMMC":["SC.L2-3.13.1","SC.L2-3.13.6"]}},
+  {t:"Remote Access Policy",type:"Policy",fw:{"NIST CSF":["PR.AC-3"],"ISO 27001":["A.6.2.2"],"PCI DSS":["Req 8.4"],"CMMC":["AC.L2-3.1.12","AC.L2-3.1.14"]}},
+  {t:"Password & Authentication Policy",type:"Policy",fw:{"NIST CSF":["PR.AC-1","PR.AC-7"],"ISO 27001":["A.9.3.1","A.9.4.3"],"HIPAA":["§164.308(a)(5)(ii)(D)"],"PCI DSS":["Req 8.2","Req 8.3"],"CMMC":["IA.L2-3.5.7","IA.L2-3.5.8"]}},
+  {t:"Change Management Policy",type:"Policy",fw:{"ISO 27001":["A.12.1.2","A.14.2.2"],"SOC 2":["CC8.1"],"PCI DSS":["Req 6.5"],"CMMC":["CM.L2-3.4.3","CM.L2-3.4.4"]}},
+  {t:"Vendor & Third-Party Management Policy",type:"Policy",fw:{"NIST CSF":["ID.SC-1","ID.SC-2"],"ISO 27001":["A.15.1.1","A.15.1.2"],"SOC 2":["CC9.1","CC9.2"],"GDPR":["Art.28"],"PCI DSS":["Req 12.8"]}},
+  {t:"Data Retention & Disposal Policy",type:"Policy",fw:{"ISO 27001":["A.8.3.1","A.8.3.2"],"HIPAA":["§164.310(d)(2)(i)","§164.310(d)(2)(ii)"],"PCI DSS":["Req 3.1","Req 9.4"],"GDPR":["Art.5","Art.17"],"CMMC":["MP.L2-3.8.3"]}},
+  {t:"Mobile Device & BYOD Policy",type:"Policy",fw:{"ISO 27001":["A.6.2.1"],"CMMC":["AC.L2-3.1.18","AC.L2-3.1.19"]}},
+  {t:"Security Awareness & Training Policy",type:"Policy",fw:{"NIST CSF":["PR.AT-1","PR.AT-2"],"ISO 27001":["A.7.2.2"],"SOC 2":["CC1.4"],"HIPAA":["§164.308(a)(5)(i)"],"PCI DSS":["Req 12.6"],"CMMC":["AT.L2-3.2.1","AT.L2-3.2.2"]}},
+  {t:"Vulnerability Management Policy",type:"Policy",fw:{"NIST CSF":["PR.IP-12"],"ISO 27001":["A.12.6.1"],"PCI DSS":["Req 6.3","Req 11.3"],"CMMC":["SI.L2-3.14.1"]}},
+  {t:"Audit Logging & Monitoring Policy",type:"Policy",fw:{"NIST CSF":["DE.CM-1","PR.PT-1"],"ISO 27001":["A.12.4.1","A.12.4.3"],"SOC 2":["CC7.1","CC7.2"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10.1","Req 10.2"],"CMMC":["AU.L2-3.3.1","AU.L2-3.3.2"]}},
+  {t:"Configuration Management Policy",type:"Policy",fw:{"NIST CSF":["PR.IP-1"],"ISO 27001":["A.12.1.1"],"PCI DSS":["Req 2.1","Req 2.2"],"CMMC":["CM.L2-3.4.1","CM.L2-3.4.2"]}},
+  {t:"System Maintenance Policy",type:"Policy",fw:{"NIST CSF":["PR.MA-1","PR.MA-2"],"ISO 27001":["A.11.2.4"],"CMMC":["MA.L2-3.7.1","MA.L2-3.7.2"]}},
+  {t:"Supply Chain Risk Management Policy",type:"Policy",fw:{"NIST CSF":["ID.SC-1","ID.SC-3"],"ISO 27001":["A.15.1.3"],"CMMC":["PS.L2-3.9.1"]}},
+  {t:"Personnel Security Policy",type:"Policy",fw:{"ISO 27001":["A.7.1.1","A.7.1.2","A.7.3.1"],"HIPAA":["§164.308(a)(3)(i)"],"PCI DSS":["Req 12.7"],"CMMC":["PS.L2-3.9.1","PS.L2-3.9.2"]}},
+  {t:"Media Handling & Protection Policy",type:"Policy",fw:{"ISO 27001":["A.8.3.1","A.8.3.3"],"HIPAA":["§164.310(d)(1)"],"PCI DSS":["Req 9.4","Req 9.5"],"CMMC":["MP.L2-3.8.1","MP.L2-3.8.2"]}},
+  {t:"Secure Development Lifecycle Policy",type:"Policy",fw:{"NIST CSF":["PR.IP-2"],"ISO 27001":["A.14.2.1","A.14.2.5"],"SOC 2":["CC8.1"],"PCI DSS":["Req 6.1","Req 6.2"],"CMMC":["SI.L2-3.14.1"]}},
+  // ── PROCEDURES ────────────────────────────────────────────────────────
+  {t:"Incident Response Plan",type:"Procedure",fw:{"NIST CSF":["RS.RP-1","RS.CO-1"],"ISO 27001":["A.16.1.1","A.16.1.5"],"SOC 2":["CC7.3","CC7.4"],"HIPAA":["§164.308(a)(6)(i)","§164.308(a)(6)(ii)"],"PCI DSS":["Req 12.10"],"GDPR":["Art.33","Art.34"],"CMMC":["IR.L2-3.6.1","IR.L2-3.6.2"]}},
+  {t:"Business Continuity & Disaster Recovery Plan",type:"Procedure",fw:{"NIST CSF":["RC.RP-1","PR.IP-9"],"ISO 27001":["A.17.1.1","A.17.1.2"],"SOC 2":["A1.2"],"HIPAA":["§164.308(a)(7)(i)","§164.308(a)(7)(ii)(B)"],"PCI DSS":["Req 12.10"],"CMMC":["IR.L2-3.6.1"]}},
+  {t:"Risk Assessment Procedure",type:"Procedure",fw:{"NIST CSF":["ID.RA-1","ID.RA-5","ID.RA-6"],"ISO 27001":["A.12.6.1"],"SOC 2":["CC3.1","CC3.2"],"HIPAA":["§164.308(a)(1)(ii)(A)"],"PCI DSS":["Req 12.3"],"GDPR":["Art.35"],"CMMC":["RA.L2-3.11.1"]}},
+  {t:"Backup & Recovery Procedure",type:"Procedure",fw:{"NIST CSF":["PR.IP-4"],"ISO 27001":["A.12.3.1"],"HIPAA":["§164.308(a)(7)(ii)(A)"],"PCI DSS":["Req 12.10"]}},
+  {t:"Data Breach Notification Procedure",type:"Procedure",fw:{"GDPR":["Art.33","Art.34"],"HIPAA":["§164.308(a)(6)(ii)"],"PCI DSS":["Req 12.10"],"SOC 2":["CC7.4"]}},
+  {t:"Data Subject Rights Procedure",type:"Procedure",fw:{"GDPR":["Art.15","Art.16","Art.17","Art.18","Art.20","Art.21"]}},
+  {t:"Data Protection Impact Assessment Procedure",type:"Procedure",fw:{"GDPR":["Art.35","Art.36"]}},
+  {t:"Security Incident Reporting Procedure",type:"Procedure",fw:{"ISO 27001":["A.16.1.2","A.16.1.3"],"HIPAA":["§164.308(a)(6)(ii)"],"PCI DSS":["Req 12.10"],"CMMC":["IR.L2-3.6.2"]}},
+  {t:"User Access Review Procedure",type:"Procedure",fw:{"ISO 27001":["A.9.2.5","A.9.2.6"],"SOC 2":["CC6.2","CC6.3"],"PCI DSS":["Req 7.2"],"CMMC":["AC.L2-3.1.7"]}},
+  {t:"Vulnerability Scanning & Penetration Testing Procedure",type:"Procedure",fw:{"ISO 27001":["A.12.6.1"],"PCI DSS":["Req 11.3","Req 11.4"],"CMMC":["RA.L2-3.11.2"]}},
+  {t:"System Hardening Procedure",type:"Procedure",fw:{"ISO 27001":["A.12.1.1"],"PCI DSS":["Req 2.2"],"CMMC":["CM.L2-3.4.6","CM.L2-3.4.7"]}},
+  {t:"Evidence Collection & Chain of Custody Procedure",type:"Procedure",fw:{"ISO 27001":["A.16.1.7"],"CMMC":["AU.L2-3.3.1"]}},
+  {t:"User Registration & De-registration Procedure",type:"Procedure",fw:{"ISO 27001":["A.9.2.1","A.9.2.2"],"SOC 2":["CC6.2"],"HIPAA":["§164.308(a)(4)(ii)(C)"],"CMMC":["AC.L2-3.1.1"]}},
+  {t:"Termination & Transfer Procedure",type:"Procedure",fw:{"ISO 27001":["A.7.3.1","A.9.2.6"],"HIPAA":["§164.308(a)(3)(ii)(C)"],"PCI DSS":["Req 8.1"],"CMMC":["PS.L2-3.9.2"]}},
+  {t:"Emergency Access Procedure",type:"Procedure",fw:{"HIPAA":["§164.312(a)(2)(ii)"],"ISO 27001":["A.9.4.1"]}},
+  {t:"Contingency Plan Testing Procedure",type:"Procedure",fw:{"NIST CSF":["PR.IP-10"],"HIPAA":["§164.308(a)(7)(ii)(D)"],"ISO 27001":["A.17.1.3"]}},
+  // ── STANDARDS ─────────────────────────────────────────────────────────
+  {t:"Encryption Standards",type:"Standard",fw:{"ISO 27001":["A.10.1.1"],"PCI DSS":["Req 3.5","Req 4.2"],"HIPAA":["§164.312(a)(2)(iv)","§164.312(e)(2)(ii)"],"CMMC":["SC.L2-3.13.11"]}},
+  {t:"Secure Coding Standards",type:"Standard",fw:{"ISO 27001":["A.14.2.1","A.14.2.5"],"PCI DSS":["Req 6.2"],"CMMC":["SI.L2-3.14.1"]}},
+  {t:"Network Segmentation Standards",type:"Standard",fw:{"PCI DSS":["Req 1.3","Req 1.4"],"ISO 27001":["A.13.1.3"],"CMMC":["SC.L2-3.13.1"]}},
+  {t:"Logging & Monitoring Standards",type:"Standard",fw:{"NIST CSF":["DE.AE-3","DE.CM-1"],"ISO 27001":["A.12.4.1","A.12.4.4"],"SOC 2":["CC7.1"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10.2","Req 10.3"],"CMMC":["AU.L2-3.3.1","AU.L2-3.3.2"]}},
+  {t:"Baseline Configuration Standards",type:"Standard",fw:{"NIST CSF":["PR.IP-1"],"ISO 27001":["A.12.1.1"],"PCI DSS":["Req 2.2"],"CMMC":["CM.L2-3.4.1","CM.L2-3.4.2"]}},
+  {t:"Wireless Security Standards",type:"Standard",fw:{"PCI DSS":["Req 2.3","Req 11.2"],"ISO 27001":["A.13.1.2"],"CMMC":["AC.L2-3.1.16","SC.L2-3.13.1"]}},
+  // ── PLANS ─────────────────────────────────────────────────────────────
+  {t:"Security Assessment Plan",type:"Plan",fw:{"CMMC":["CA.L2-3.12.1","CA.L2-3.12.3"],"NIST CSF":["DE.DP-1","DE.DP-3"],"ISO 27001":["A.18.2.1"]}},
+  {t:"System Security Plan",type:"Plan",fw:{"CMMC":["CA.L2-3.12.4"],"NIST CSF":["ID.GV-1"]}},
+  {t:"Contingency Plan",type:"Plan",fw:{"HIPAA":["§164.308(a)(7)(i)","§164.308(a)(7)(ii)(C)"],"NIST CSF":["PR.IP-9"]}},
+  {t:"Risk Treatment Plan",type:"Plan",fw:{"ISO 27001":["A.5.1.1"],"NIST CSF":["ID.RA-6"],"SOC 2":["CC3.2"]}},
+  // ── GUIDELINES ────────────────────────────────────────────────────────
+  {t:"Data Handling Guidelines",type:"Guideline",fw:{"GDPR":["Art.5","Art.25"],"HIPAA":["§164.312(c)(1)"],"PCI DSS":["Req 3.1","Req 3.3"]}},
+  {t:"Secure Disposal Guidelines",type:"Guideline",fw:{"ISO 27001":["A.11.2.7"],"HIPAA":["§164.310(d)(2)(i)"],"PCI DSS":["Req 9.4"],"CMMC":["MP.L2-3.8.3"]}},
+  {t:"Visitor Management Guidelines",type:"Guideline",fw:{"ISO 27001":["A.11.1.2"],"PCI DSS":["Req 9.3"],"CMMC":["PE.L2-3.10.3","PE.L2-3.10.4"]}},
+];
