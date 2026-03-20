@@ -74,7 +74,7 @@ const NAV = [
   {s:'OVERVIEW'},{id:'dashboard',l:'Dashboard',i:'dashboard'},
   {s:'MODULES'},{id:'audits',l:'Audit Collection',i:'audit'},{id:'risks',l:'Risk Register',i:'risk'},
   {id:'benchmarks',l:'Benchmarks',i:'benchmark'},{id:'compliance',l:'Compliance',i:'compliance'},
-  {id:'governance',l:'Governance',i:'governance'},
+  {id:'governance',l:'Governance',i:'governance'},{id:'csf2',l:'CSF 2.0 Assessment',i:'compliance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
   {id:'settings',l:'Settings',i:'settings'},
 ];
@@ -190,7 +190,7 @@ function closeModal() { const o=$('#overlay'); if(o) o.remove(); }
 // ─── Render Router ─────────────────────────────────────────────────────────
 function render() {
   const c = $('#content');
-  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,reports:pgReports,manual:pgManual,settings:pgSettings};
+  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,reports:pgReports,manual:pgManual,settings:pgSettings};
   c.innerHTML = (fn[S.module]||pgDash)();
   if (S.module==='settings') settingsPostRender();
 }
@@ -929,6 +929,221 @@ async function uploadGovEvidence(polId, reqIdx) {
 }
 
 async function delPol(id) { await API.del('policies',id); S.policies=S.policies.filter(p=>p._id!==id); render(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NIST CSF 2.0 ASSESSMENT
+// ═══════════════════════════════════════════════════════════════════════════
+let csf2View = 'assessment'; // 'assessment' or 'report'
+let csf2ExpandedFn = null;
+let csf2ExpandedCat = null;
+
+function _csf2Scores() {
+  const cfg = S.config.csf2Scores || {};
+  return cfg;
+}
+
+function _csf2FnScore(fn) {
+  const scores = _csf2Scores();
+  let total = 0, count = 0;
+  for (const cat of fn.categories) {
+    for (const sub of cat.subcategories) {
+      const s = scores[sub.id];
+      if (s && s > 0) { total += s; count++; }
+    }
+  }
+  return count > 0 ? (total / count) : 0;
+}
+
+function _csf2CatScore(cat) {
+  const scores = _csf2Scores();
+  let total = 0, count = 0;
+  for (const sub of cat.subcategories) {
+    const s = scores[sub.id];
+    if (s && s > 0) { total += s; count++; }
+  }
+  return count > 0 ? (total / count) : 0;
+}
+
+function _tierLabel(t) {
+  if (t >= 3.5) return 'Adaptive';
+  if (t >= 2.5) return 'Repeatable';
+  if (t >= 1.5) return 'Risk Informed';
+  if (t > 0) return 'Partial';
+  return 'Not Assessed';
+}
+
+function _tierColor(t) {
+  if (t >= 3.5) return 'var(--green)';
+  if (t >= 2.5) return 'var(--blue)';
+  if (t >= 1.5) return 'var(--yellow)';
+  if (t > 0) return 'var(--red)';
+  return 'var(--t4)';
+}
+
+function pgCSF2() {
+  if (typeof CSF2 === 'undefined') return '<div class="page"><div class="empty"><p>CSF 2.0 data not loaded. Please refresh the page.</p></div></div>';
+  const scores = _csf2Scores();
+
+  // Calculate function-level scores
+  const fnData = CSF2.functions.map(fn => {
+    const score = _csf2FnScore(fn);
+    let totalSubs = 0, assessedSubs = 0;
+    for (const cat of fn.categories) {
+      for (const sub of cat.subcategories) {
+        totalSubs++;
+        if (scores[sub.id] && scores[sub.id] > 0) assessedSubs++;
+      }
+    }
+    return { fn, score, totalSubs, assessedSubs };
+  });
+
+  const totalSubs = fnData.reduce((s, d) => s + d.totalSubs, 0);
+  const assessedSubs = fnData.reduce((s, d) => s + d.assessedSubs, 0);
+  const overallScore = fnData.reduce((s, d) => s + d.score, 0) / (fnData.filter(d => d.score > 0).length || 1);
+
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>NIST CSF 2.0 Assessment</h2><p>Assess organizational maturity across the 6 core functions, categories, and subcategories</p></div></div>'
+    + '<div class="tabs mb-24">'
+    + '<button class="tab-btn ' + (csf2View === 'assessment' ? 'on' : '') + '" onclick="csf2View=\'assessment\';render()">Assessment</button>'
+    + '<button class="tab-btn ' + (csf2View === 'report' ? 'on' : '') + '" onclick="csf2View=\'report\';render()">Maturity Report</button></div>';
+
+  if (csf2View === 'report') {
+    html += _csf2Report(fnData, overallScore, totalSubs, assessedSubs);
+  } else {
+    html += _csf2Assessment(fnData, scores);
+  }
+  html += '</div>';
+  return html;
+}
+
+function _csf2Report(fnData, overallScore, totalSubs, assessedSubs) {
+  const pct = totalSubs ? Math.round(assessedSubs / totalSubs * 100) : 0;
+
+  let html = '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:' + _tierColor(overallScore) + '">' + overallScore.toFixed(1) + '</div><div class="stat-lbl">Overall Maturity</div><div class="stat-sub">' + _tierLabel(overallScore) + '</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + assessedSubs + '/' + totalSubs + '</div><div class="stat-lbl">Assessed</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + pct + '%</div><div class="stat-lbl">Complete</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--t2)">4.0</div><div class="stat-lbl">Target (Adaptive)</div></div></div>';
+
+  // Function maturity bars
+  html += '<div class="card mb-24"><div class="card-head"><h3>Function Maturity — Tier 1: Functions</h3></div>';
+  for (const d of fnData) {
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
+      + '<div style="min-width:100px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + d.fn.color + '"></span><span style="font-size:13px;font-weight:600;color:var(--t1)">' + d.fn.id + '</span></div>'
+      + '<div style="min-width:80px;font-size:12px;color:var(--t2)">' + esc(d.fn.name) + '</div>'
+      + '<div class="pbar" style="flex:1;height:8px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.fn.color + '"></div></div>'
+      + '<div style="min-width:60px;text-align:right;font-family:var(--mono);font-size:13px;font-weight:700;color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="min-width:90px;font-size:11px;color:var(--t3)">' + _tierLabel(d.score) + '</div></div>';
+  }
+  html += '</div>';
+
+  // Category breakdown
+  html += '<div class="card mb-24"><div class="card-head"><h3>Category Maturity — Tier 2: Categories</h3></div>';
+  for (const d of fnData) {
+    html += '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:' + d.fn.color + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</div>';
+    for (const cat of d.fn.categories) {
+      const catScore = _csf2CatScore(cat);
+      const catPct = Math.round(catScore / 4 * 100);
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;padding-left:16px">'
+        + '<div style="min-width:70px;font-size:12px;font-family:var(--mono);color:var(--accent)">' + cat.id + '</div>'
+        + '<div style="min-width:180px;font-size:12px;color:var(--t2)">' + esc(cat.name) + '</div>'
+        + '<div class="pbar" style="flex:1;height:5px"><div class="pfill" style="width:' + catPct + '%;background:' + d.fn.color + '"></div></div>'
+        + '<div style="min-width:40px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:600;color:' + _tierColor(catScore) + '">' + catScore.toFixed(1) + '</div></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Subcategory detail
+  const scores = _csf2Scores();
+  html += '<div class="card"><div class="card-head"><h3>Subcategory Detail — Tier 3: Subcategories</h3></div>'
+    + '<div class="table-wrap" style="border:none"><table><thead><tr><th>ID</th><th>Subcategory</th><th>Tier</th><th>Maturity</th></tr></thead><tbody>';
+  for (const d of fnData) {
+    html += '<tr><td colspan="4" style="background:var(--bg-2);font-weight:700;color:' + d.fn.color + ';font-size:12px;text-transform:uppercase;letter-spacing:1px;padding:10px 18px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</td></tr>';
+    for (const cat of d.fn.categories) {
+      html += '<tr><td colspan="4" style="background:var(--bg-input);font-weight:600;color:var(--accent);font-size:11px;padding:8px 18px 8px 28px">' + cat.id + ' — ' + esc(cat.name) + '</td></tr>';
+      for (const sub of cat.subcategories) {
+        const s = scores[sub.id] || 0;
+        const tierBadge = s > 0 ? '<span class="badge ' + (s >= 4 ? 'b-low' : s >= 3 ? 'b-info' : s >= 2 ? 'b-medium' : 'b-critical') + '">' + _tierLabel(s) + '</span>' : '<span style="color:var(--t4);font-size:11px">Not assessed</span>';
+        html += '<tr><td class="cell-mono" style="padding-left:38px;color:var(--t2);font-size:11px">' + sub.id + '</td>'
+          + '<td style="font-size:12px;color:var(--t1)">' + esc(sub.name) + '</td>'
+          + '<td class="cell-mono" style="font-weight:700;color:' + _tierColor(s) + '">' + (s > 0 ? s : '\u2014') + '</td>'
+          + '<td>' + tierBadge + '</td></tr>';
+      }
+    }
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function _csf2Assessment(fnData, scores) {
+  let html = '';
+  // Function cards
+  for (const d of fnData) {
+    const isExpanded = csf2ExpandedFn === d.fn.id;
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div class="card mb-24" style="border-left:3px solid ' + d.fn.color + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:4px 0" onclick="csf2ExpandedFn=csf2ExpandedFn===\'' + d.fn.id + '\'?null:\'' + d.fn.id + '\';csf2ExpandedCat=null;render()">'
+      + '<div><div style="font-size:16px;font-weight:700;color:' + d.fn.color + '">' + d.fn.id + ' — ' + esc(d.fn.name) + '</div>'
+      + '<div style="font-size:12px;color:var(--t3);margin-top:4px">' + esc(d.fn.desc || '') + '</div></div>'
+      + '<div style="text-align:right;min-width:100px"><div style="font-size:24px;font-weight:700;font-family:var(--mono);color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="font-size:10px;color:var(--t3)">' + _tierLabel(d.score) + ' \u00b7 ' + d.assessedSubs + '/' + d.totalSubs + '</div></div></div>'
+      + '<div class="pbar" style="height:4px;margin-top:10px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.fn.color + '"></div></div>';
+
+    if (isExpanded) {
+      for (const cat of d.fn.categories) {
+        const catScore = _csf2CatScore(cat);
+        const isCatExpanded = csf2ExpandedCat === cat.id;
+        html += '<div style="margin-top:16px;border:1px solid var(--border-0);border-radius:var(--radius);overflow:hidden">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-2);cursor:pointer" onclick="event.stopPropagation();csf2ExpandedCat=csf2ExpandedCat===\'' + cat.id + '\'?null:\'' + cat.id + '\';render()">'
+          + '<div style="font-size:13px;font-weight:600;color:var(--accent)">' + cat.id + ' — ' + esc(cat.name) + '</div>'
+          + '<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:' + _tierColor(catScore) + '">' + catScore.toFixed(1) + '</div></div>';
+
+        if (isCatExpanded) {
+          for (const sub of cat.subcategories) {
+            const subScore = scores[sub.id] || 0;
+            html += '<div style="padding:14px 16px;border-top:1px solid var(--border-0)">'
+              + '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">'
+              + '<div><span style="font-family:var(--mono);font-size:11px;color:var(--t3)">' + sub.id + '</span>'
+              + '<div style="font-size:13px;font-weight:600;color:var(--t1);margin-top:2px">' + esc(sub.name) + '</div></div>'
+              + '<select class="ctrl-status-sel" style="min-width:130px" onchange="saveCSF2Score(\'' + sub.id + '\',+this.value)">'
+              + '<option value="0"' + (subScore === 0 ? ' selected' : '') + '>Not Assessed</option>'
+              + '<option value="1"' + (subScore === 1 ? ' selected' : '') + '>Tier 1 — Partial</option>'
+              + '<option value="2"' + (subScore === 2 ? ' selected' : '') + '>Tier 2 — Risk Informed</option>'
+              + '<option value="3"' + (subScore === 3 ? ' selected' : '') + '>Tier 3 — Repeatable</option>'
+              + '<option value="4"' + (subScore === 4 ? ' selected' : '') + '>Tier 4 — Adaptive</option></select></div>';
+
+            // Questions
+            if (sub.questions && sub.questions.length > 0) {
+              html += '<div style="padding-left:8px;border-left:2px solid var(--border-0);margin-top:8px">';
+              for (const q of sub.questions) {
+                html += '<div style="font-size:12px;color:var(--t2);padding:3px 0;line-height:1.6">\u2022 ' + esc(q) + '</div>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+        }
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+async function saveCSF2Score(subId, tier) {
+  if (!S.config.csf2Scores) S.config.csf2Scores = {};
+  S.config.csf2Scores[subId] = tier;
+  if (S.config._id) {
+    await API.update('config', S.config._id, { csf2Scores: S.config.csf2Scores });
+  } else {
+    S.config._id = 'main-config';
+    await API.create('config', S.config);
+  }
+  render();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // REPORTS
