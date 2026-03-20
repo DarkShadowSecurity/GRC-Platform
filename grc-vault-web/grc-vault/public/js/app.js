@@ -79,15 +79,7 @@ const NAV = [
   {id:'settings',l:'Settings',i:'settings'},
 ];
 
-const FW = {
-  "NIST CSF":{c:["ID.AM","ID.BE","ID.GV","ID.RA","ID.RM","ID.SC","PR.AC","PR.AT","PR.DS","PR.IP","PR.MA","PR.PT","DE.AE","DE.CM","DE.DP","RS.RP","RS.CO","RS.AN","RS.MI","RS.IM","RC.RP","RC.IM","RC.CO"]},
-  "ISO 27001":{c:["A.5","A.6","A.7","A.8","A.9","A.10","A.11","A.12","A.13","A.14","A.15","A.16","A.17","A.18"]},
-  "SOC 2":{c:["CC1","CC2","CC3","CC4","CC5","CC6","CC7","CC8","CC9","A1","C1","PI1","P1"]},
-  "HIPAA":{c:["§164.308(a)(1)","§164.308(a)(2)","§164.308(a)(3)","§164.308(a)(4)","§164.310(a)","§164.310(b)","§164.310(c)","§164.310(d)","§164.312(a)","§164.312(b)","§164.312(c)","§164.312(d)","§164.312(e)"]},
-  "PCI DSS":{c:["Req 1","Req 2","Req 3","Req 4","Req 5","Req 6","Req 7","Req 8","Req 9","Req 10","Req 11","Req 12"]},
-  "GDPR":{c:["Art.5","Art.6","Art.7","Art.9","Art.12-14","Art.15-20","Art.25","Art.28","Art.30","Art.32","Art.33","Art.35","Art.37"]},
-  "CMMC":{c:["AC","AT","AU","CM","IA","IR","MA","MP","PE","PS","RA","RE","RM","CA","SC","SI","PM"]},
-};
+// FW is defined in framework-data.js (loaded before this file)
 
 const BM = {
   healthcare:{breach:10930000,incidents:22,fines:4500000,surface:.78,reg:.92},
@@ -139,11 +131,15 @@ const CROSS_MAP = [
   { domain:"Monitoring & Assurance", map:{"SOC 2":["CC5"],"ISO 27001":["A.18"],"CMMC":["CA"]}},
 ];
 
+function _prefixMatch(fwCtrls, controlId) {
+  return fwCtrls.some(mapId => controlId === mapId || controlId.startsWith(mapId + '.') || controlId.startsWith(mapId + '-') || controlId.startsWith(mapId + '('));
+}
+
 function findMappedControls(framework, controlId) {
   const results = [];
   for (const group of CROSS_MAP) {
     const fwCtrls = group.map[framework] || [];
-    if (fwCtrls.includes(controlId)) {
+    if (_prefixMatch(fwCtrls, controlId)) {
       for (const [fw, cids] of Object.entries(group.map)) {
         if (fw === framework) continue;
         for (const cid of cids) {
@@ -160,7 +156,7 @@ function getControlDomains(framework, controlId) {
   const domains = [];
   for (const group of CROSS_MAP) {
     const fwCtrls = group.map[framework] || [];
-    if (fwCtrls.includes(controlId)) domains.push(group.domain);
+    if (_prefixMatch(fwCtrls, controlId)) domains.push(group.domain);
   }
   return domains;
 }
@@ -490,14 +486,17 @@ function pgComp() {
       for (const c of fc) {
         const mapped = findMappedControls(c.framework, c.controlId);
         const mappedActive = mapped.filter(m => activeFws.length === 0 || activeFws.includes(m.framework));
-        const mappedDone = mappedActive.filter(m => S.controls.find(x => x.framework === m.framework && x.controlId === m.controlId && x.status === 'Implemented'));
+        const mappedDone = mappedActive.filter(m => S.controls.some(x => x.framework === m.framework && x.status === 'Implemented' &&
+          (x.controlId === m.controlId || x.controlId.startsWith(m.controlId + '.') || x.controlId.startsWith(m.controlId + '-') || x.controlId.startsWith(m.controlId + '('))));
         let mapBadge = '<span style="color:var(--t4);font-size:11px">\u2014</span>';
         if (mappedActive.length > 0) {
           const mapTitle = esc(mappedActive.map(m => m.framework + ' ' + m.controlId).join(', '));
           mapBadge = '<span class="badge b-cyan" style="cursor:pointer" onclick="showMappedControls(\'' + c.framework + '\',\'' + c.controlId + '\')" title="' + mapTitle + '">\u2194 ' + mappedActive.length + ' fw' + (mappedDone.length ? ' \u00b7 ' + mappedDone.length + ' done' : '') + '</span>';
         }
+        const fwRef = FW[c.framework]?.ref || '';
+        const ctrlIdLink = fwRef ? '<a href="' + esc(fwRef) + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="View framework reference">' + esc(c.controlId) + ' ' + I.link + '</a>' : esc(c.controlId);
         controlRows += '<tr>'
-          + '<td class="cell-mono" style="color:var(--accent);font-weight:600">' + esc(c.controlId) + '</td>'
+          + '<td class="cell-mono" style="font-weight:600">' + ctrlIdLink + '</td>'
           + '<td class="cell-bold">' + esc(c.name) + '</td>'
           + '<td><select class="ctrl-status-sel" onchange="changeCtrlStatus(\'' + c._id + '\',this.value)">'
           + '<option' + (c.status === 'Not Started' ? ' selected' : '') + '>Not Started</option>'
@@ -512,7 +511,7 @@ function pgComp() {
 
   let html = '<div class="page">'
     + '<div class="page-head"><div><h2>Compliance Tracking</h2><p>Select frameworks, map controls, and track cross-framework implementation</p></div>'
-    + '<div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewCtrl()">' + I.plus + ' Add Control</button></div></div>'
+    + '<div class="page-head-actions"><button class="btn btn-secondary" onclick="populateFramework(compFw)">' + I.download + ' Populate All Controls</button><button class="btn btn-primary" onclick="modalNewCtrl()">' + I.plus + ' Add Control</button></div></div>'
     + '<div class="card mb-24"><div class="card-head"><h3>Active Frameworks</h3>'
     + '<span style="font-size:12px;color:var(--t3)">Select which frameworks apply to your organization</span></div>'
     + '<div class="fw-checks">' + fwCheckboxes + '</div>'
@@ -574,11 +573,14 @@ async function changeCtrlStatus(id, newStatus) {
   let propagated = 0;
 
   for (const m of mappedActive) {
-    const existing = S.controls.find(c => c.framework === m.framework && c.controlId === m.controlId);
-    if (existing && rank[newStatus] > rank[existing.status]) {
-      existing.status = newStatus;
-      await API.update('controls', existing._id, { status: newStatus });
-      propagated++;
+    const targets = S.controls.filter(c => c.framework === m.framework &&
+      (c.controlId === m.controlId || c.controlId.startsWith(m.controlId + '.') || c.controlId.startsWith(m.controlId + '-') || c.controlId.startsWith(m.controlId + '(')));
+    for (const existing of targets) {
+      if (rank[newStatus] > rank[existing.status]) {
+        existing.status = newStatus;
+        await API.update('controls', existing._id, { status: newStatus });
+        propagated++;
+      }
     }
   }
   if (propagated > 0) toast('Status propagated to ' + propagated + ' mapped control' + (propagated > 1 ? 's' : ''));
@@ -591,9 +593,12 @@ function showMappedControls(framework, controlId) {
 
   let rows = '';
   for (const m of mapped) {
-    const existing = S.controls.find(c => c.framework === m.framework && c.controlId === m.controlId);
-    const badge = existing
-      ? '<span class="badge ' + statusCls(existing.status) + '">' + existing.status + '</span>'
+    const targets = S.controls.filter(c => c.framework === m.framework &&
+      (c.controlId === m.controlId || c.controlId.startsWith(m.controlId + '.') || c.controlId.startsWith(m.controlId + '-') || c.controlId.startsWith(m.controlId + '(')));
+    const implCount = targets.filter(c => c.status === 'Implemented').length;
+    const totalCount = targets.length;
+    const badge = totalCount > 0
+      ? '<span class="badge ' + (implCount === totalCount ? 'b-low' : implCount > 0 ? 'b-medium' : 'b-critical') + '">' + implCount + '/' + totalCount + ' done</span>'
       : '<span style="color:var(--t4);font-size:11px">Not tracked</span>';
     rows += '<tr><td class="cell-mono" style="color:var(--accent)">' + esc(m.controlId) + '</td>'
       + '<td class="cell-bold">' + esc(m.framework) + '</td>'
@@ -612,10 +617,10 @@ function showMappedControls(framework, controlId) {
 
 function modalNewCtrl() {
   let opts = '';
-  const ctrls = FW[compFw]?.c || [];
-  for (const c of ctrls) opts += '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+  const ctrls = FW[compFw]?.controls || [];
+  for (const c of ctrls) opts += '<option value="' + esc(c[0]) + '">' + esc(c[0]) + ' \u2014 ' + esc(c[1]) + '</option>';
   modal('Add Control \u2014 ' + esc(compFw),
-    '<div class="fr fr2"><div class="fg"><label class="fl">Control ID</label><select class="fs" id="cId" onchange="previewMapping()">' + opts + '</select></div>'
+    '<div class="fr fr2"><div class="fg"><label class="fl">Control ID</label><select class="fs" id="cId" onchange="previewMapping();autofillCtrlName()">' + opts + '</select></div>'
     + '<div class="fg"><label class="fl">Status</label><select class="fs" id="cSt"><option>Not Started</option><option>Partially Implemented</option><option>Implemented</option></select></div></div>'
     + '<div class="fg"><label class="fl">Control Name</label><input class="fi" id="cNm" placeholder="e.g., Access Control Policy"></div>'
     + '<div class="fg"><label class="fl">Owner</label><input class="fi" id="cOw" placeholder="Responsible person or team"></div>'
@@ -625,6 +630,7 @@ function modalNewCtrl() {
     'md',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveCtrl()">Save Control</button>');
   previewMapping();
+  autofillCtrlName();
 }
 
 function previewMapping() {
@@ -650,6 +656,15 @@ function previewMapping() {
   el.innerHTML = '<div class="card" style="padding:14px;background:var(--bg-input)">'
     + '<div style="font-size:11px;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">\u2194 Cross-Framework Mappings</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px">' + badges + '</div></div>';
+}
+
+function autofillCtrlName() {
+  const sel = document.querySelector('#cId');
+  const nameField = document.querySelector('#cNm');
+  if (!sel || !nameField) return;
+  const ctrls = FW[compFw]?.controls || [];
+  const match = ctrls.find(c => c[0] === sel.value);
+  if (match && !nameField.value.trim()) nameField.value = match[1];
 }
 
 async function saveCtrl() {
@@ -684,6 +699,24 @@ async function saveCtrl() {
     toast('Control added');
   }
   closeModal(); render();
+}
+
+async function populateFramework(fw) {
+  const fwData = FW[fw];
+  if (!fwData || !fwData.controls) return;
+  let created = 0;
+  for (const ctrl of fwData.controls) {
+    const exists = S.controls.find(c => c.framework === fw && c.controlId === ctrl[0]);
+    if (!exists) {
+      const doc = { _id: uid(), framework: fw, controlId: ctrl[0], name: ctrl[1], status: 'Not Started', owner: '', notes: '' };
+      await API.create('controls', doc);
+      S.controls.push(doc);
+      created++;
+    }
+  }
+  if (created > 0) toast(created + ' controls populated for ' + fw);
+  else toast('All controls already exist for ' + fw);
+  render();
 }
 
 async function delCtrl(id) { await API.del('controls',id); S.controls=S.controls.filter(c=>c._id!==id); render(); }
