@@ -2,19 +2,48 @@
 // GRC VAULT — Web Application
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─── Auth State ──────────────────────────────────────────────────────────
+let authToken = localStorage.getItem('grc_token') || null;
+let currentUser = null;
+
+function _authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+  return h;
+}
+
+function _authHeadersNoBody() {
+  const h = {};
+  if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+  return h;
+}
+
+async function _apiFetch(url, opts) {
+  const resp = await fetch(url, opts);
+  if (resp.status === 401) { logout(); return { ok: false, error: 'Session expired' }; }
+  return resp.json();
+}
+
 // ─── API Client ────────────────────────────────────────────────────────────
 const API = {
-  async get(store)        { return (await fetch(`/api/${store}`)).json(); },
-  async getOne(store, id) { return (await fetch(`/api/${store}/${id}`)).json(); },
-  async create(store, d)  { return (await fetch(`/api/${store}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })).json(); },
-  async update(store,id,d){ return (await fetch(`/api/${store}/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })).json(); },
-  async del(store, id)    { return (await fetch(`/api/${store}/${id}`, { method:'DELETE' })).json(); },
-  async counts()          { return (await fetch('/api/stats/counts')).json(); },
-  async exportAll()       { const r = await fetch('/api/data/export'); return r.json(); },
-  async importAll(data)   { return (await fetch('/api/data/import', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })).json(); },
-  async clearAll()        { return (await fetch('/api/data/clear', { method:'POST' })).json(); },
+  async get(store)        { return _apiFetch('/api/' + store, { headers: _authHeadersNoBody() }); },
+  async getOne(store, id) { return _apiFetch('/api/' + store + '/' + id, { headers: _authHeadersNoBody() }); },
+  async create(store, d)  { return _apiFetch('/api/' + store, { method:'POST', headers:_authHeaders(), body:JSON.stringify(d) }); },
+  async update(store,id,d){ return _apiFetch('/api/' + store + '/' + id, { method:'PUT', headers:_authHeaders(), body:JSON.stringify(d) }); },
+  async del(store, id)    { return _apiFetch('/api/' + store + '/' + id, { method:'DELETE', headers:_authHeadersNoBody() }); },
+  async counts()          { return _apiFetch('/api/stats/counts', { headers: _authHeadersNoBody() }); },
+  async exportAll()       { return _apiFetch('/api/data/export', { headers: _authHeadersNoBody() }); },
+  async importAll(data)   { return _apiFetch('/api/data/import', { method:'POST', headers:_authHeaders(), body:JSON.stringify(data) }); },
+  async clearAll()        { return _apiFetch('/api/data/clear', { method:'POST', headers:_authHeaders() }); },
   async health()          { return (await fetch('/api/health')).json(); },
-  async testProxy(url,tk) { return (await fetch('/api/proxy/test', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url,token:tk}) })).json(); },
+  async testProxy(url,tk) { return _apiFetch('/api/proxy/test', { method:'POST', headers:_authHeaders(), body:JSON.stringify({url,token:tk}) }); },
+  async login(u, p)       { return (await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) })).json(); },
+  async getUsers()        { return _apiFetch('/api/users', { headers: _authHeadersNoBody() }); },
+  async createUser(d)     { return _apiFetch('/api/users', { method:'POST', headers:_authHeaders(), body:JSON.stringify(d) }); },
+  async updateUser(id,d)  { return _apiFetch('/api/users/' + id, { method:'PUT', headers:_authHeaders(), body:JSON.stringify(d) }); },
+  async deleteUser(id)    { return _apiFetch('/api/users/' + id, { method:'DELETE', headers:_authHeadersNoBody() }); },
+  async getAuditLog(limit){ return _apiFetch('/api/auditlog?limit=' + (limit||200), { headers: _authHeadersNoBody() }); },
+  async changePassword(c,n){ return _apiFetch('/api/auth/change-password', { method:'POST', headers:_authHeaders(), body:JSON.stringify({currentPassword:c,newPassword:n}) }); },
 };
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -77,6 +106,7 @@ const NAV = [
   {id:'governance',l:'Governance',i:'governance'},{id:'csf2',l:'CSF 2.0 Assessment',i:'compliance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
   {id:'settings',l:'Settings',i:'settings'},
+  {s:'ADMIN',admin:true},{id:'users',l:'User Management',i:'settings',admin:true},{id:'auditlog',l:'Audit Log',i:'audit',admin:true},
 ];
 
 // FW is defined in framework-data.js (loaded before this file)
@@ -172,13 +202,20 @@ function getControlDomains(framework, controlId) {
 
 // ─── Sidebar ───────────────────────────────────────────────────────────────
 function renderSidebar() {
-  $('#sidebarNav').innerHTML = NAV.map(n => {
-    if (n.s) return `<div class="nav-label">${n.s}</div>`;
-    return `<button class="nav-btn ${S.module===n.id?'active':''}" onclick="go('${n.id}')">${I[n.i]}<span>${n.l}</span></button>`;
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  $('#sidebarNav').innerHTML = NAV.filter(n => !n.admin || isAdmin).map(n => {
+    if (n.s) return '<div class="nav-label">' + n.s + '</div>';
+    return '<button class="nav-btn ' + (S.module === n.id ? 'active' : '') + '" onclick="go(\'' + n.id + '\')">' + I[n.i] + '<span>' + n.l + '</span></button>';
   }).join('');
-  const has = S.config && S.config.apiUrl;
-  $('#statusDot').className = `status-dot ${has?'on':'off'}`;
-  $('#statusTxt').textContent = has ? 'API Connected' : 'Local Database';
+  const foot = $('#statusTxt');
+  const dot = $('#statusDot');
+  if (currentUser) {
+    dot.className = 'status-dot on';
+    foot.innerHTML = esc(currentUser.name || currentUser.username) + ' <span style="color:var(--t4);cursor:pointer" onclick="logout()">[logout]</span>';
+  } else {
+    dot.className = 'status-dot off';
+    foot.textContent = 'Not logged in';
+  }
 }
 
 function toggleSidebar() { $('.sidebar').classList.toggle('collapsed'); }
@@ -199,7 +236,7 @@ function closeModal() { const o=$('#overlay'); if(o) o.remove(); }
 // ─── Render Router ─────────────────────────────────────────────────────────
 function render() {
   const c = $('#content');
-  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,reports:pgReports,manual:pgManual,settings:pgSettings};
+  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
   c.innerHTML = (fn[S.module]||pgDash)();
   if (S.module==='settings') settingsPostRender();
 }
@@ -410,7 +447,7 @@ async function uploadAuditEvidence(auditId, idx) {
     const file = e.target.files[0]; if (!file) return;
     const form = new FormData(); form.append('file', file);
     try {
-      const resp = await fetch('/api/upload', { method: 'POST', body: form });
+      const resp = await fetch('/api/upload', { method: 'POST', headers: _authHeadersNoBody(), body: form });
       const result = await resp.json();
       if (result.ok) {
         const a = S.audits.find(x => x._id === auditId);
@@ -1131,7 +1168,7 @@ async function uploadGovEvidence(polId, reqIdx) {
     const form = new FormData();
     form.append('file', file);
     try {
-      const resp = await fetch('/api/upload', { method: 'POST', body: form });
+      const resp = await fetch('/api/upload', { method: 'POST', headers: _authHeadersNoBody(), body: form });
       const result = await resp.json();
       if (result.ok) {
         const pol = S.policies.find(p => p._id === polId);
@@ -1590,6 +1627,186 @@ async function doClear() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// USER MANAGEMENT (admin only)
+// ═══════════════════════════════════════════════════════════════════════════
+function pgUsers() {
+  if (!currentUser || currentUser.role !== 'admin') return '<div class="page"><div class="empty"><p>Admin access required</p></div></div>';
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>User Management</h2><p>Manage user accounts and access to the platform</p></div>'
+    + '<div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewUser()">' + I.plus + ' Add User</button></div></div>'
+    + '<div id="usersTable"><div class="empty"><p>Loading users...</p></div></div></div>';
+  setTimeout(loadUsersTable, 50);
+  return html;
+}
+
+async function loadUsersTable() {
+  const result = await API.getUsers();
+  const users = result.data || [];
+  const el = document.querySelector('#usersTable');
+  if (!el) return;
+  if (users.length === 0) { el.innerHTML = '<div class="empty"><p>No users found</p></div>'; return; }
+  let rows = '';
+  for (const u of users) {
+    const roleBadge = u.role === 'admin' ? 'b-critical' : u.role === 'auditor' ? 'b-info' : 'b-low';
+    const statusBadge = u.disabled ? '<span class="badge b-neutral">Disabled</span>' : '<span class="badge b-low">Active</span>';
+    rows += '<tr>'
+      + '<td class="cell-bold">' + esc(u.name) + '</td>'
+      + '<td class="cell-mono">' + esc(u.username) + '</td>'
+      + '<td class="cell-dim">' + esc(u.email || '\u2014') + '</td>'
+      + '<td><span class="badge ' + roleBadge + '">' + esc(u.role) + '</span></td>'
+      + '<td>' + statusBadge + '</td>'
+      + '<td class="cell-mono">' + (u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '\u2014') + '</td>'
+      + '<td class="cell-actions">'
+      + '<button class="btn btn-ghost btn-sm" onclick="modalEditUser(\'' + u._id + '\')" title="Edit">' + I.settings + '</button>'
+      + (u.username !== 'admin' ? '<button class="btn btn-ghost btn-sm" onclick="deleteUser(\'' + u._id + '\')" title="Delete">' + I.trash + '</button>' : '')
+      + '</td></tr>';
+  }
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th class="cell-actions"></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function modalNewUser() {
+  modal('Add User',
+    '<div class="fr fr2"><div class="fg"><label class="fl">Username</label><input class="fi" id="nuUser" placeholder="username"></div><div class="fg"><label class="fl">Full Name</label><input class="fi" id="nuName" placeholder="Full Name"></div></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Email</label><input class="fi" id="nuEmail" type="email" placeholder="email@company.com"></div><div class="fg"><label class="fl">Role</label><select class="fs" id="nuRole"><option value="user">User</option><option value="auditor">Auditor</option><option value="admin">Admin</option></select></div></div>'
+    + '<div class="fg"><label class="fl">Password (min 8 characters)</label><input class="fi" id="nuPass" type="password" placeholder="Password"></div>',
+    'md',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveNewUser()">Create User</button>');
+}
+
+async function saveNewUser() {
+  const username = document.querySelector('#nuUser').value.trim();
+  const password = document.querySelector('#nuPass').value;
+  if (!username || !password) { toast('Username and password required', 'error'); return; }
+  if (password.length < 8) { toast('Password must be at least 8 characters', 'error'); return; }
+  const result = await API.createUser({ username: username, password: password, name: document.querySelector('#nuName').value.trim() || username, email: document.querySelector('#nuEmail').value.trim(), role: document.querySelector('#nuRole').value });
+  if (result.ok) { closeModal(); loadUsersTable(); toast('User created: ' + username); }
+  else { toast(result.error || 'Failed to create user', 'error'); }
+}
+
+async function modalEditUser(id) {
+  const result = await API.getUsers();
+  const u = (result.data || []).find(x => x._id === id);
+  if (!u) return;
+  modal('Edit User \u2014 ' + esc(u.username),
+    '<div class="fr fr2"><div class="fg"><label class="fl">Full Name</label><input class="fi" id="euName" value="' + esc(u.name) + '"></div><div class="fg"><label class="fl">Email</label><input class="fi" id="euEmail" value="' + esc(u.email || '') + '"></div></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Role</label><select class="fs" id="euRole"><option value="user"' + (u.role === 'user' ? ' selected' : '') + '>User</option><option value="auditor"' + (u.role === 'auditor' ? ' selected' : '') + '>Auditor</option><option value="admin"' + (u.role === 'admin' ? ' selected' : '') + '>Admin</option></select></div><div class="fg"><label class="fl">Status</label><select class="fs" id="euStatus"><option value="false"' + (!u.disabled ? ' selected' : '') + '>Active</option><option value="true"' + (u.disabled ? ' selected' : '') + '>Disabled</option></select></div></div>'
+    + '<div class="fg"><label class="fl">New Password (leave blank to keep current)</label><input class="fi" id="euPass" type="password" placeholder="Leave blank to keep current"></div>',
+    'md',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditUser(\'' + id + '\')">Save Changes</button>');
+}
+
+async function saveEditUser(id) {
+  const updates = { name: document.querySelector('#euName').value.trim(), email: document.querySelector('#euEmail').value.trim(), role: document.querySelector('#euRole').value, disabled: document.querySelector('#euStatus').value === 'true' };
+  const newPass = document.querySelector('#euPass').value;
+  if (newPass) { if (newPass.length < 8) { toast('Password must be at least 8 characters', 'error'); return; } updates.password = newPass; }
+  const result = await API.updateUser(id, updates);
+  if (result.ok) { closeModal(); loadUsersTable(); toast('User updated'); }
+  else { toast(result.error || 'Failed to update user', 'error'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user? This cannot be undone.')) return;
+  const result = await API.deleteUser(id);
+  if (result.ok) { loadUsersTable(); toast('User deleted'); }
+  else { toast(result.error || 'Failed to delete user', 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════
+function pgAuditLog() {
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>Audit Log</h2><p>Complete trail of all actions, changes, and file uploads</p></div></div>'
+    + '<div id="auditLogTable"><div class="empty"><p>Loading audit log...</p></div></div></div>';
+  setTimeout(loadAuditLogTable, 50);
+  return html;
+}
+
+async function loadAuditLogTable() {
+  const result = await API.getAuditLog(500);
+  const logs = result.data || [];
+  const el = document.querySelector('#auditLogTable');
+  if (!el) return;
+  if (logs.length === 0) { el.innerHTML = '<div class="empty"><p>No audit log entries yet</p></div>'; return; }
+  const actionColors = { 'login': 'b-info', 'create': 'b-low', 'update': 'b-medium', 'delete': 'b-critical', 'upload': 'b-cyan', 'create-user': 'b-purple', 'update-user': 'b-purple', 'delete-user': 'b-critical', 'change-password': 'b-medium', 'export': 'b-accent', 'import': 'b-accent', 'clear-all': 'b-critical' };
+  let rows = '';
+  for (const log of logs) {
+    const badge = actionColors[log.action] || 'b-neutral';
+    const ts = log.timestamp ? new Date(log.timestamp) : null;
+    const timeStr = ts ? ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString() : '\u2014';
+    rows += '<tr>'
+      + '<td class="cell-mono" style="font-size:11px;white-space:nowrap">' + timeStr + '</td>'
+      + '<td class="cell-bold" style="font-size:12px">' + esc(log.name || log.username) + '</td>'
+      + '<td><span class="badge ' + badge + '" style="font-size:9px">' + esc(log.action) + '</span></td>'
+      + '<td style="font-size:12px;color:var(--accent)">' + esc(log.store || '\u2014') + '</td>'
+      + '<td style="font-size:12px;color:var(--t2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(log.details || '') + '">' + esc(log.details || '\u2014') + '</td>'
+      + '<td class="cell-dim" style="font-size:10px">' + esc(log.ip || '') + '</td></tr>';
+  }
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Store</th><th>Details</th><th>IP</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOGIN SCREEN
+// ═══════════════════════════════════════════════════════════════════════════
+function showLoginScreen() {
+  document.querySelector('#app').style.display = 'none';
+  let loginEl = document.querySelector('#loginScreen');
+  if (!loginEl) {
+    loginEl = document.createElement('div');
+    loginEl.id = 'loginScreen';
+    document.body.appendChild(loginEl);
+  }
+  loginEl.style.display = 'flex';
+  loginEl.innerHTML = '<div style="width:100%;max-width:400px;margin:auto">'
+    + '<div style="text-align:center;margin-bottom:32px"><div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#267a73);font-size:22px;font-weight:700;color:#fff;margin-bottom:16px">GV</div>'
+    + '<h1 style="font-size:24px;font-weight:700;color:var(--t1)">GRC Vault</h1>'
+    + '<p style="font-size:14px;color:var(--t3);margin-top:4px">Sign in to continue</p></div>'
+    + '<div class="card" style="padding:28px">'
+    + '<div class="fg" style="margin-bottom:16px"><label class="fl">Username</label><input class="fi" id="loginUser" placeholder="Username" autofocus></div>'
+    + '<div class="fg" style="margin-bottom:20px"><label class="fl">Password</label><input class="fi" id="loginPass" type="password" placeholder="Password"></div>'
+    + '<div id="loginError" style="font-size:12px;color:var(--red);margin-bottom:12px;display:none"></div>'
+    + '<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In</button></div></div>';
+  loginEl.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg-0);padding:24px';
+  // Enter key handler
+  setTimeout(function() {
+    const passEl = document.querySelector('#loginPass');
+    if (passEl) passEl.onkeydown = function(e) { if (e.key === 'Enter') doLogin(); };
+    const userEl = document.querySelector('#loginUser');
+    if (userEl) userEl.onkeydown = function(e) { if (e.key === 'Enter') document.querySelector('#loginPass').focus(); };
+  }, 50);
+}
+
+async function doLogin() {
+  const username = document.querySelector('#loginUser').value.trim();
+  const password = document.querySelector('#loginPass').value;
+  const errEl = document.querySelector('#loginError');
+  if (!username || !password) { errEl.textContent = 'Enter username and password'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  const result = await API.login(username, password);
+  if (result.ok) {
+    authToken = result.token;
+    currentUser = result.user;
+    localStorage.setItem('grc_token', authToken);
+    document.querySelector('#loginScreen').style.display = 'none';
+    document.querySelector('#app').style.display = 'flex';
+    await loadData();
+    renderSidebar();
+    render();
+  } else {
+    errEl.textContent = result.error || 'Login failed';
+    errEl.style.display = 'block';
+  }
+}
+
+function logout() {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('grc_token');
+  showLoginScreen();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadData() {
@@ -1600,9 +1817,24 @@ async function loadData() {
 }
 
 async function init() {
-  await loadData();
-  renderSidebar();
-  render();
+  if (authToken) {
+    // Validate existing token
+    try {
+      const resp = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + authToken } });
+      if (resp.ok) {
+        const result = await resp.json();
+        currentUser = result.user;
+        await loadData();
+        renderSidebar();
+        render();
+        return;
+      }
+    } catch (e) {}
+    // Token invalid
+    authToken = null;
+    localStorage.removeItem('grc_token');
+  }
+  showLoginScreen();
 }
 
 init();
