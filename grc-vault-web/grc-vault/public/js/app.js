@@ -62,6 +62,16 @@ function riskLevel(s){
   if(s>=6)  return {level:'Medium',cls:'b-medium',color:'var(--yellow)'};
   return {level:'Low',cls:'b-low',color:'var(--green)'};
 }
+function riskImpact(level){
+  const m={
+    Critical:{impact:'Severe operational disruption, regulatory action, existential threat',cost:'$1M – $10M+'},
+    High:{impact:'Significant business disruption, potential compliance violations',cost:'$250K – $1M'},
+    Medium:{impact:'Moderate operational impact, manageable financial exposure',cost:'$50K – $250K'},
+    Low:{impact:'Minimal business disruption, low financial exposure',cost:'< $50K'}
+  };
+  return m[level]||m.Low;
+}
+function fmtCost(n){ return n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n; }
 function heatColor(s){
   if(s>=20) return {bg:'var(--red-bg)',fg:'var(--red)'};
   if(s>=12) return {bg:'var(--orange-bg)',fg:'var(--orange)'};
@@ -264,7 +274,7 @@ function pgDash() {
     </div>
     <div class="grid g2 mb-24">
       <div class="card"><div class="card-head"><h3>Risk Distribution</h3></div>
-        <div class="bars">${[['Critical','var(--red)',levels.Critical],['High','var(--orange)',levels.High],['Medium','var(--yellow)',levels.Medium],['Low','var(--green)',levels.Low]].map(([l,c,v])=>`<div class="bar-c"><div class="bar-v" style="color:${c}">${v}</div><div class="bar-f" style="background:${c};height:${Math.max(v/mx*100,4)}%"></div><div class="bar-l">${l}</div></div>`).join('')}</div>
+        <div class="bars">${[['Critical','var(--red)',levels.Critical],['High','var(--orange)',levels.High],['Medium','var(--yellow)',levels.Medium],['Low','var(--green)',levels.Low]].map(([l,c,v])=>{const ri=riskImpact(l);const lc=S.risks.filter(r=>riskLevel(r.residualScore||0).level===l);const tc=lc.reduce((s,r)=>s+(r.estCost||0),0);return `<div class="bar-c"><div class="bar-v" style="color:${c}">${v}</div><div class="bar-f" style="background:${c};height:${Math.max(v/mx*100,4)}%"></div><div class="bar-l">${l}</div><div class="bar-impact">${ri.impact}</div><div class="bar-cost" style="color:${c}">${tc>0?fmtCost(tc):ri.cost}</div>`;}).join('')}</div>
       </div>
       <div class="card"><div class="card-head"><h3>Compliance Coverage</h3></div>
         <div class="donut"><svg viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="none" stroke="var(--border-0)" stroke-width="11"/><circle cx="75" cy="75" r="62" fill="none" stroke="var(--green)" stroke-width="11" stroke-dasharray="${circ} 390" stroke-linecap="round"/></svg><div class="donut-val" style="color:var(--green)">${cp}%</div></div>
@@ -511,14 +521,18 @@ function pgRisks() {
       hm+=`<div class="hm-cell" style="background:${hc.bg};color:${hc.fg};${cnt?`box-shadow:inset 0 0 0 2px ${hc.fg}`:''}">${s}${cnt?`<div class="dot">●${cnt}</div>`:''}</div>`;
     }
   }
-  hm+=`<div></div>${[1,2,3,4,5].map(i=>`<div class="hm-x">${i}</div>`).join('')}`;
+  const impLabels=['Negligible','Minor','Moderate','Major','Catastrophic'];
+  const impCosts=['< $50K','$50K–250K','$250K–1M','$1M–5M','$5M+'];
+  hm+=`<div></div>${[1,2,3,4,5].map((i,idx)=>`<div class="hm-x"><div>${i}</div><div class="hm-x-lbl">${impLabels[idx]}</div><div class="hm-x-cost">${impCosts[idx]}</div></div>`).join('')}`;
+
+  const totalExposure=S.risks.reduce((s,r)=>s+(r.estCost||0),0);
 
   return `<div class="page">
     <div class="page-head"><div><h2>Risk Register</h2><p>Assess, quantify, and manage enterprise risks</p></div><div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewRisk()">${I.plus} Add Risk</button></div></div>
-    <div class="card mb-24"><div class="card-head"><h3>Risk Heat Map</h3><span style="font-size:12px;color:var(--t3)">Likelihood (Y) × Impact (X)</span></div><div class="hm">${hm}</div></div>
-    <div class="table-wrap"><table><thead><tr><th>Risk</th><th>Category</th><th>Raw</th><th>Residual</th><th>Level</th><th>Treatment</th><th>Owner</th><th class="cell-actions"></th></tr></thead>
-      <tbody>${S.risks.length===0?'<tr><td colspan="8"><div class="empty"><p>No risks registered</p></div></td></tr>':
-        S.risks.map(r=>{const rl=riskLevel(r.residualScore||0);return `<tr><td class="cell-bold">${esc(r.name)}</td><td class="cell-dim">${r.category}</td><td class="cell-mono">${r.rawScore}</td><td class="cell-mono" style="color:${rl.color};font-weight:700">${r.residualScore}</td><td><span class="badge ${rl.cls}">${rl.level}</span></td><td class="cell-dim">${r.treatment}</td><td class="cell-dim">${esc(r.owner||'—')}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="delRisk('${r._id}')">${I.trash}</button></td></tr>`;}).join('')}
+    <div class="card mb-24"><div class="card-head"><h3>Risk Heat Map</h3><span style="font-size:12px;color:var(--t3)">Likelihood (Y) × Impact (X) — Business Impact &amp; Cost</span></div><div class="hm">${hm}</div>${totalExposure>0?`<div style="text-align:center;margin-top:12px;font-size:13px;color:var(--t2)"><strong>Total Estimated Exposure:</strong> <span style="color:var(--orange);font-family:var(--mono);font-weight:700">${fmtCost(totalExposure)}</span></div>`:''}</div>
+    <div class="table-wrap"><table><thead><tr><th>Risk</th><th>Category</th><th>Raw</th><th>Residual</th><th>Level</th><th>Business Impact</th><th>Est. Cost</th><th>Treatment</th><th>Owner</th><th class="cell-actions"></th></tr></thead>
+      <tbody>${S.risks.length===0?'<tr><td colspan="10"><div class="empty"><p>No risks registered</p></div></td></tr>':
+        S.risks.map(r=>{const rl=riskLevel(r.residualScore||0);const ri=riskImpact(rl.level);return `<tr><td class="cell-bold">${esc(r.name)}</td><td class="cell-dim">${r.category}</td><td class="cell-mono">${r.rawScore}</td><td class="cell-mono" style="color:${rl.color};font-weight:700">${r.residualScore}</td><td><span class="badge ${rl.cls}">${rl.level}</span></td><td class="cell-dim" style="font-size:11px;max-width:200px">${ri.impact}</td><td class="cell-mono" style="color:${rl.color};font-weight:600">${r.estCost?fmtCost(r.estCost):ri.cost}</td><td class="cell-dim">${r.treatment}</td><td class="cell-dim">${esc(r.owner||'—')}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="delRisk('${r._id}')">${I.trash}</button></td></tr>`;}).join('')}
       </tbody></table></div></div>`;
 }
 
@@ -526,7 +540,7 @@ function modalNewRisk() {
   modal('Add Risk Assessment',`
     <div class="fg"><label class="fl">Risk Name</label><input class="fi" id="rN" placeholder="e.g., Ransomware attack on production"></div>
     <div class="fr fr2"><div class="fg"><label class="fl">Category</label><select class="fs" id="rCat"><option>Operational</option><option>Financial</option><option>Strategic</option><option>Compliance</option><option>Reputational</option><option>Cybersecurity</option><option>Legal</option><option>Environmental</option></select></div><div class="fg"><label class="fl">Treatment</label><select class="fs" id="rTr"><option>Mitigate</option><option>Accept</option><option>Transfer</option><option>Avoid</option></select></div></div>
-    <div class="fg"><label class="fl">Owner</label><input class="fi" id="rOw" placeholder="Person or team"></div>
+    <div class="fr fr2"><div class="fg"><label class="fl">Owner</label><input class="fi" id="rOw" placeholder="Person or team"></div><div class="fg"><label class="fl">Est. Annual Cost ($)</label><input class="fi" id="rCo" type="number" min="0" step="1000" placeholder="e.g., 500000"></div></div>
     <div class="fg"><label class="fl">Description</label><textarea class="ft" id="rDe" placeholder="Risk description..."></textarea></div>
     <div class="fr fr3">
       <div class="range-wrap"><label class="fl">Likelihood (1–5)</label><input type="range" min="1" max="5" value="3" id="rL" oninput="riskPreview()"><div class="range-val" id="rvL" style="color:var(--accent)">3</div></div>
@@ -537,22 +551,27 @@ function modalNewRisk() {
       <div><div class="stat-val" style="font-size:22px" id="rvRaw">9</div><div class="stat-lbl">Raw</div></div>
       <div><div class="stat-val" style="font-size:22px" id="rvRes">4.5</div><div class="stat-lbl">Residual</div></div>
       <div><div class="stat-val" style="font-size:18px" id="rvLv">Low</div><div class="stat-lbl">Level</div></div>
-    </div></div>
+    </div><div id="rvImpact" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--t3);text-align:center"><strong style="color:var(--t2)">Business Impact:</strong> Minimal business disruption, low financial exposure<br><strong style="color:var(--t2)">Est. Cost Range:</strong> < $50K</div></div>
   `,'md',`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveRisk()">Save Risk</button>`);
   riskPreview();
 }
 
 function riskPreview() {
-  const l=+$('#rL').value,i=+$('#rI').value,e=+$('#rE').value,s=riskScore(l,i,e),rl=riskLevel(s.residual);
+  const l=+$('#rL').value,i=+$('#rI').value,e=+$('#rE').value,s=riskScore(l,i,e),rl=riskLevel(s.residual),ri=riskImpact(rl.level);
   $('#rvL').textContent=l;$('#rvI').textContent=i;$('#rvE').textContent=e+'%';
   $('#rvRaw').textContent=s.raw;$('#rvRes').textContent=s.residual;$('#rvRes').style.color=rl.color;
   $('#rvLv').textContent=rl.level;$('#rvLv').style.color=rl.color;
+  const impEl=$('#rvImpact');impEl.textContent='';
+  const b1=document.createElement('strong');b1.style.color='var(--t2)';b1.textContent='Business Impact: ';
+  const b2=document.createElement('strong');b2.style.color=rl.color;b2.textContent='Est. Cost Range: ';
+  impEl.append(b1,ri.impact,document.createElement('br'),b2,ri.cost);
 }
 
 async function saveRisk() {
   const name=$('#rN').value.trim(); if(!name) return;
   const l=+$('#rL').value,i=+$('#rI').value,e=+$('#rE').value,s=riskScore(l,i,e);
-  const doc={_id:uid(),name,category:$('#rCat').value,treatment:$('#rTr').value,owner:$('#rOw').value,description:$('#rDe').value,likelihood:l,impact:i,controlEffectiveness:e,rawScore:s.raw,residualScore:s.residual};
+  const estCost=+($('#rCo').value)||0;
+  const doc={_id:uid(),name,category:$('#rCat').value,treatment:$('#rTr').value,owner:$('#rOw').value,description:$('#rDe').value,likelihood:l,impact:i,controlEffectiveness:e,rawScore:s.raw,residualScore:s.residual,estCost};
   await API.create('risks',doc); S.risks.unshift(doc); closeModal(); render(); toast('Risk added');
 }
 
