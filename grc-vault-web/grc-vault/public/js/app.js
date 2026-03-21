@@ -236,16 +236,50 @@ function pgDash() {
 // AUDITS
 // ═══════════════════════════════════════════════════════════════════════════
 function pgAudits() {
-  return `<div class="page">
-    <div class="page-head"><div><h2>Audit Collection</h2><p>Manage audits, record findings, and track evidence</p></div>
-      <div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewAudit()">${I.plus} New Audit</button></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Audit Name</th><th>Framework</th><th>Artifacts</th><th>Auditor</th><th>Status</th><th>Start</th><th>Findings</th><th class="cell-actions"></th></tr></thead>
-      <tbody>${S.audits.length===0?'<tr><td colspan="8"><div class="empty"><p>No audits yet</p></div></td></tr>':
-        S.audits.map(a=>{const fc=S.findings.filter(f=>f.auditId===a._id).length;
-        const arts=a.artifacts||[];const artsDone=arts.filter(x=>x.collected).length;const artsPct=arts.length?Math.round(artsDone/arts.length*100):0;
-        const artBar=arts.length>0?`<div style="display:flex;align-items:center;gap:6px"><div class="pbar" style="flex:1;height:4px;min-width:60px"><div class="pfill" style="width:${artsPct}%;background:${artsPct===100?'var(--green)':artsPct>0?'var(--yellow)':'var(--red)'}"></div></div><span style="font-size:11px;font-family:var(--mono);color:var(--t2)">${artsDone}/${arts.length}</span></div>`:'<span style="color:var(--t4);font-size:11px">\u2014</span>';
-        return `<tr onclick="modalAuditDetail('${a._id}')" style="cursor:pointer"><td class="cell-bold">${esc(a.name)}</td><td><span class="badge b-accent">${esc(a.framework)}</span></td><td style="min-width:120px">${artBar}</td><td class="cell-dim">${esc(a.auditor||'\u2014')}</td><td><span class="badge ${statusCls(a.status)}">${a.status}</span></td><td class="cell-mono">${a.startDate||'\u2014'}</td><td class="cell-mono">${fc}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delAudit('${a._id}')">${I.trash}</button></td></tr>`;}).join('')}
-      </tbody></table></div></div>`;
+  // Build common artifacts list (4+ frameworks)
+  let commonHtml = '';
+  if (typeof GOV_ITEMS !== 'undefined') {
+    const common = GOV_ITEMS.filter(g => Object.keys(g.fw).length >= 4).sort((a, b) => Object.keys(b.fw).length - Object.keys(a.fw).length);
+    const _atb = {'Policy':'b-info','Procedure':'b-purple','Standard':'b-accent','Plan':'b-cyan','Guideline':'b-medium','Diagram':'b-info','Inventory':'b-accent','Agreement':'b-purple','Report':'b-high','Record':'b-low','Evidence':'b-cyan','Register':'b-medium'};
+    let rows = '';
+    for (const g of common) {
+      const fws = Object.keys(g.fw);
+      let fwBadges = '';
+      for (const fw of fws) fwBadges += '<span class="badge b-accent" style="font-size:8px;margin:1px">' + esc(fw) + '</span>';
+      const ctrls = fws.map(fw => fw + ': ' + g.fw[fw].join(', ')).join(' | ');
+      rows += '<tr><td class="cell-bold" style="font-size:12px">' + esc(g.t) + '</td>'
+        + '<td><span class="badge ' + (_atb[g.type] || 'b-neutral') + '" style="font-size:9px">' + esc(g.type) + '</span></td>'
+        + '<td style="font-size:11px;font-weight:700;color:var(--accent);text-align:center">' + fws.length + '</td>'
+        + '<td style="max-width:300px">' + fwBadges + '</td>'
+        + '<td style="font-size:10px;color:var(--t3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(ctrls) + '">' + esc(ctrls) + '</td></tr>';
+    }
+    commonHtml = '<div class="card mb-24"><div class="card-head"><h3>Common Audit Artifacts Across Frameworks</h3><span style="font-size:12px;color:var(--t3)">' + common.length + ' artifacts required by 4+ frameworks</span></div>'
+      + '<div class="table-wrap" style="border:none;max-height:400px;overflow-y:auto"><table><thead><tr><th>Artifact</th><th>Type</th><th>#</th><th>Frameworks</th><th>Controls</th></tr></thead><tbody>'
+      + rows + '</tbody></table></div></div>';
+  }
+
+  // Audits table
+  let auditRows = '';
+  if (S.audits.length === 0) {
+    auditRows = '<tr><td colspan="8"><div class="empty"><p>No audits yet \u2014 create one to auto-populate all required artifacts for a framework</p></div></td></tr>';
+  } else {
+    for (const a of S.audits) {
+      const fc = S.findings.filter(f => f.auditId === a._id).length;
+      const arts = a.artifacts || [];
+      const artsDone = arts.filter(x => x.collected).length;
+      const artsPct = arts.length ? Math.round(artsDone / arts.length * 100) : 0;
+      const artBar = arts.length > 0 ? '<div style="display:flex;align-items:center;gap:6px"><div class="pbar" style="flex:1;height:4px;min-width:60px"><div class="pfill" style="width:' + artsPct + '%;background:' + (artsPct === 100 ? 'var(--green)' : artsPct > 0 ? 'var(--yellow)' : 'var(--red)') + '"></div></div><span style="font-size:11px;font-family:var(--mono);color:var(--t2)">' + artsDone + '/' + arts.length + '</span></div>' : '<span style="color:var(--t4);font-size:11px">\u2014</span>';
+      auditRows += '<tr onclick="modalAuditDetail(\'' + a._id + '\')" style="cursor:pointer"><td class="cell-bold">' + esc(a.name) + '</td><td><span class="badge b-accent">' + esc(a.framework) + '</span></td><td style="min-width:120px">' + artBar + '</td><td class="cell-dim">' + esc(a.auditor || '\u2014') + '</td><td><span class="badge ' + statusCls(a.status) + '">' + a.status + '</span></td><td class="cell-mono">' + (a.startDate || '\u2014') + '</td><td class="cell-mono">' + fc + '</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delAudit(\'' + a._id + '\')">' + I.trash + '</button></td></tr>';
+    }
+  }
+
+  return '<div class="page">'
+    + '<div class="page-head"><div><h2>Audit Collection</h2><p>Manage audits, record findings, and track evidence collection</p></div>'
+    + '<div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewAudit()">' + I.plus + ' New Audit</button></div></div>'
+    + commonHtml
+    + '<div class="card-head" style="margin-bottom:14px"><h3>Audits</h3></div>'
+    + '<div class="table-wrap"><table><thead><tr><th>Audit Name</th><th>Framework</th><th>Artifacts</th><th>Auditor</th><th>Status</th><th>Start</th><th>Findings</th><th class="cell-actions"></th></tr></thead><tbody>'
+    + auditRows + '</tbody></table></div></div>';
 }
 
 function modalNewAudit() {
@@ -612,8 +646,17 @@ function pgComp() {
           (x.controlId === m.controlId || x.controlId.startsWith(m.controlId + '.') || x.controlId.startsWith(m.controlId + '-') || x.controlId.startsWith(m.controlId + '('))));
         let mapBadge = '<span style="color:var(--t4);font-size:11px">\u2014</span>';
         if (mappedActive.length > 0) {
-          const mapTitle = esc(mappedActive.map(m => m.framework + ' ' + m.controlId).join(', '));
-          mapBadge = '<span class="badge b-cyan" style="cursor:pointer" onclick="showMappedControls(\'' + c.framework + '\',\'' + c.controlId + '\')" title="' + mapTitle + '">\u2194 ' + mappedActive.length + ' fw' + (mappedDone.length ? ' \u00b7 ' + mappedDone.length + ' done' : '') + '</span>';
+          // Group by framework for display
+          const fwGroups = {};
+          for (const m of mappedActive) {
+            if (!fwGroups[m.framework]) fwGroups[m.framework] = [];
+            fwGroups[m.framework].push(m.controlId);
+          }
+          let mapChips = '';
+          for (const [fw, cids] of Object.entries(fwGroups)) {
+            mapChips += '<span class="badge b-neutral" style="font-size:9px;margin:1px;cursor:pointer" onclick="showMappedControls(\'' + c.framework + '\',\'' + c.controlId + '\')" title="' + esc(fw + ': ' + cids.join(', ')) + '">' + esc(fw) + ': ' + esc(cids.join(', ')) + '</span>';
+          }
+          mapBadge = '<div style="display:flex;flex-wrap:wrap;gap:2px;max-width:280px">' + mapChips + '</div>';
         }
         const fwRef = FW[c.framework]?.ref || '';
         const ctrlIdLink = fwRef ? '<a href="' + esc(fwRef) + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="View framework reference">' + esc(c.controlId) + ' ' + I.link + '</a>' : esc(c.controlId);
@@ -661,7 +704,7 @@ function pgComp() {
         + '<div class="pbar" style="height:8px"><div class="pfill" style="width:' + cov + '%;background:var(--green)"></div></div></div>';
     }
     html += coverageSummary
-      + '<div class="table-wrap"><table><thead><tr><th>Control ID</th><th>Name</th><th>Status</th><th>Maps To</th><th>Owner</th><th class="cell-actions"></th></tr></thead><tbody>'
+      + '<div class="table-wrap"><table><thead><tr><th>Control ID</th><th>Name</th><th>Status</th><th>Cross-Framework Mapping</th><th>Owner</th><th class="cell-actions"></th></tr></thead><tbody>'
       + controlRows + '</tbody></table></div>';
   }
   html += '</div>';
