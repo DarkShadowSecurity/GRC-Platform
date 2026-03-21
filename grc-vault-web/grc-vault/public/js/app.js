@@ -239,10 +239,12 @@ function pgAudits() {
   return `<div class="page">
     <div class="page-head"><div><h2>Audit Collection</h2><p>Manage audits, record findings, and track evidence</p></div>
       <div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewAudit()">${I.plus} New Audit</button></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Audit Name</th><th>Framework</th><th>Scope</th><th>Auditor</th><th>Status</th><th>Start</th><th>Findings</th><th class="cell-actions"></th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Audit Name</th><th>Framework</th><th>Artifacts</th><th>Auditor</th><th>Status</th><th>Start</th><th>Findings</th><th class="cell-actions"></th></tr></thead>
       <tbody>${S.audits.length===0?'<tr><td colspan="8"><div class="empty"><p>No audits yet</p></div></td></tr>':
         S.audits.map(a=>{const fc=S.findings.filter(f=>f.auditId===a._id).length;
-        return `<tr onclick="modalAuditDetail('${a._id}')" style="cursor:pointer"><td class="cell-bold">${esc(a.name)}</td><td>${esc(a.framework)}</td><td class="cell-dim">${esc(a.scope||'—')}</td><td class="cell-dim">${esc(a.auditor||'—')}</td><td><span class="badge ${statusCls(a.status)}">${a.status}</span></td><td class="cell-mono">${a.startDate||'—'}</td><td class="cell-mono">${fc}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delAudit('${a._id}')">${I.trash}</button></td></tr>`;}).join('')}
+        const arts=a.artifacts||[];const artsDone=arts.filter(x=>x.collected).length;const artsPct=arts.length?Math.round(artsDone/arts.length*100):0;
+        const artBar=arts.length>0?`<div style="display:flex;align-items:center;gap:6px"><div class="pbar" style="flex:1;height:4px;min-width:60px"><div class="pfill" style="width:${artsPct}%;background:${artsPct===100?'var(--green)':artsPct>0?'var(--yellow)':'var(--red)'}"></div></div><span style="font-size:11px;font-family:var(--mono);color:var(--t2)">${artsDone}/${arts.length}</span></div>`:'<span style="color:var(--t4);font-size:11px">\u2014</span>';
+        return `<tr onclick="modalAuditDetail('${a._id}')" style="cursor:pointer"><td class="cell-bold">${esc(a.name)}</td><td><span class="badge b-accent">${esc(a.framework)}</span></td><td style="min-width:120px">${artBar}</td><td class="cell-dim">${esc(a.auditor||'\u2014')}</td><td><span class="badge ${statusCls(a.status)}">${a.status}</span></td><td class="cell-mono">${a.startDate||'\u2014'}</td><td class="cell-mono">${fc}</td><td class="cell-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();delAudit('${a._id}')">${I.trash}</button></td></tr>`;}).join('')}
       </tbody></table></div></div>`;
 }
 
@@ -259,8 +261,18 @@ function modalNewAudit() {
 
 async function saveAudit() {
   const name=$('#fN').value.trim(); if(!name) return;
-  const doc={_id:uid(),name,framework:$('#fFw').value,status:$('#fSt').value,scope:$('#fSc').value,auditor:$('#fAu').value,startDate:$('#fSD').value,endDate:$('#fED').value,notes:$('#fNo').value};
-  await API.create('audits',doc); S.audits.unshift(doc); closeModal(); render(); toast('Audit created');
+  const fw = $('#fFw').value;
+  // Build artifact checklist from GOV_ITEMS for this framework
+  const artifacts = [];
+  if (typeof GOV_ITEMS !== 'undefined') {
+    for (const item of GOV_ITEMS) {
+      if (item.fw[fw]) {
+        artifacts.push({ title: item.t, type: item.type, controls: item.fw[fw].join(', '), collected: false, url: '', file: '', fileName: '', notes: '' });
+      }
+    }
+  }
+  const doc={_id:uid(),name,framework:fw,status:$('#fSt').value,scope:$('#fSc').value,auditor:$('#fAu').value,startDate:$('#fSD').value,endDate:$('#fED').value,notes:$('#fNo').value,artifacts:artifacts};
+  await API.create('audits',doc); S.audits.unshift(doc); closeModal(); render(); toast('Audit created with ' + artifacts.length + ' artifacts');
 }
 
 async function delAudit(id) {
@@ -271,15 +283,125 @@ async function delAudit(id) {
   S.findings=S.findings.filter(f=>f.auditId!==id); render(); toast('Audit deleted');
 }
 
+let auditDetailTab = 'artifacts';
+
 function modalAuditDetail(id) {
-  const a=S.audits.find(x=>x._id===id); if(!a) return;
-  const af=S.findings.filter(f=>f.auditId===id);
-  modal(esc(a.name),`
-    <div class="fr fr4">${[['Framework',a.framework],['Scope',a.scope||'—'],['Auditor',a.auditor||'—']].map(([l,v])=>`<div><div class="fl">${l}</div><div style="margin-top:5px">${esc(v)}</div></div>`).join('')}<div><div class="fl">Status</div><div style="margin-top:5px"><span class="badge ${statusCls(a.status)}">${a.status}</span></div></div></div>
-    ${a.notes?`<div style="font-size:13px;color:var(--t2);line-height:1.7;padding:14px 0;border-top:1px solid var(--border-0)">${esc(a.notes)}</div>`:''}
-    <div style="display:flex;justify-content:space-between;align-items:center"><h4 style="font-size:14px;font-weight:600">Findings (${af.length})</h4><button class="btn btn-primary btn-sm" onclick="closeModal();modalNewFinding('${id}')">${I.plus} Add Finding</button></div>
-    ${af.length===0?'<div class="empty"><p>No findings recorded</p></div>':af.map(f=>`<div class="card" style="padding:16px;margin-top:6px"><div style="display:flex;justify-content:space-between;align-items:start"><div><div class="cell-bold">${esc(f.title)}</div><div style="font-size:12px;color:var(--t2);margin-top:5px;line-height:1.6">${esc(f.description)}</div>${f.recommendation?`<div style="font-size:12px;color:var(--accent);margin-top:6px">Rec: ${esc(f.recommendation)}</div>`:''}<div style="font-size:11px;color:var(--t4);margin-top:6px">Control: ${esc(f.control||'—')}</div></div><span class="badge ${f.severity==='Critical'?'b-critical':f.severity==='High'?'b-high':f.severity==='Medium'?'b-medium':'b-low'}">${f.severity}</span></div></div>`).join('')}
-  `,'lg');
+  const a = S.audits.find(x => x._id === id); if (!a) return;
+  const af = S.findings.filter(f => f.auditId === id);
+  const arts = a.artifacts || [];
+  const artsDone = arts.filter(x => x.collected).length;
+  const artsPct = arts.length ? Math.round(artsDone / arts.length * 100) : 0;
+
+  let header = '<div class="fr fr4" style="margin-bottom:14px">'
+    + [['Framework', a.framework], ['Scope', a.scope || '\u2014'], ['Auditor', a.auditor || '\u2014']].map(function(p) { return '<div><div class="fl">' + p[0] + '</div><div style="margin-top:5px">' + esc(p[1]) + '</div></div>'; }).join('')
+    + '<div><div class="fl">Status</div><div style="margin-top:5px"><span class="badge ' + statusCls(a.status) + '">' + a.status + '</span></div></div></div>';
+  if (a.notes) header += '<div style="font-size:13px;color:var(--t2);line-height:1.7;padding:10px 0;border-top:1px solid var(--border-0)">' + esc(a.notes) + '</div>';
+
+  if (arts.length > 0) {
+    header += '<div class="card" style="padding:12px;background:var(--bg-input);margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--t2)">Evidence Collection Progress</span><span style="font-family:var(--mono);font-size:13px;font-weight:700;color:' + (artsPct === 100 ? 'var(--green)' : 'var(--yellow)') + '">' + artsDone + '/' + arts.length + ' (' + artsPct + '%)</span></div><div class="pbar" style="height:6px;margin-top:8px"><div class="pfill" style="width:' + artsPct + '%;background:var(--green)"></div></div></div>';
+  }
+
+  let tabs = '<div class="tabs" style="margin-bottom:14px">'
+    + '<button class="tab-btn ' + (auditDetailTab === 'artifacts' ? 'on' : '') + '" onclick="auditDetailTab=\'artifacts\';closeModal();modalAuditDetail(\'' + id + '\')">Artifacts (' + arts.length + ')</button>'
+    + '<button class="tab-btn ' + (auditDetailTab === 'findings' ? 'on' : '') + '" onclick="auditDetailTab=\'findings\';closeModal();modalAuditDetail(\'' + id + '\')">Findings (' + af.length + ')</button></div>';
+
+  let body = '';
+  if (auditDetailTab === 'artifacts') {
+    if (arts.length === 0) {
+      body = '<div class="empty"><p>No artifacts for this audit. This audit may have been created before artifact auto-population was added.</p></div>';
+    } else {
+      const _atb = {'Policy':'b-info','Procedure':'b-purple','Standard':'b-accent','Plan':'b-cyan','Guideline':'b-medium','Diagram':'b-info','Inventory':'b-accent','Agreement':'b-purple','Report':'b-high','Record':'b-low','Evidence':'b-cyan','Register':'b-medium'};
+      for (let i = 0; i < arts.length; i++) {
+        const art = arts[i];
+        const checkIcon = art.collected ? '\u2705' : '\u2b1c';
+        const tb = _atb[art.type] || 'b-neutral';
+        body += '<div style="padding:10px 0;border-bottom:1px solid var(--border-0);display:flex;align-items:start;gap:10px">'
+          + '<span style="font-size:16px;cursor:pointer;flex-shrink:0;margin-top:2px" onclick="toggleAuditArtifact(\'' + id + '\',' + i + ')">' + checkIcon + '</span>'
+          + '<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13px;font-weight:600;color:var(--t1)">' + esc(art.title) + '</span><span class="badge ' + tb + '" style="font-size:9px">' + esc(art.type) + '</span></div>'
+          + '<div style="font-size:11px;color:var(--t3);margin-top:3px">Controls: ' + esc(art.controls || '') + '</div>'
+          + '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">'
+          + '<input class="fi" style="flex:1;font-size:11px;padding:5px 8px" placeholder="Evidence URL or repository link..." value="' + esc(art.url || '') + '" onchange="updateAuditArtifact(\'' + id + '\',' + i + ',\'url\',this.value)">'
+          + '<button class="btn btn-secondary btn-sm" style="padding:4px 10px;font-size:10px" onclick="uploadAuditEvidence(\'' + id + '\',' + i + ')">' + I.upload + '</button></div>';
+        if (art.file) {
+          body += '<div style="font-size:11px;margin-top:4px"><a href="/api/uploads/' + esc(art.file) + '" target="_blank" style="color:var(--accent)">' + I.link + ' ' + esc(art.fileName || art.file) + '</a></div>';
+        }
+        body += '</div></div>';
+      }
+    }
+    body += '<div style="margin-top:14px;text-align:center"><button class="btn btn-secondary btn-sm" onclick="addAuditArtifact(\'' + id + '\')">' + I.plus + ' Add Custom Artifact</button></div>';
+  } else {
+    body = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span></span><button class="btn btn-primary btn-sm" onclick="closeModal();modalNewFinding(\'' + id + '\')">' + I.plus + ' Add Finding</button></div>';
+    if (af.length === 0) {
+      body += '<div class="empty"><p>No findings recorded</p></div>';
+    } else {
+      for (const f of af) {
+        const sevBadge = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low';
+        body += '<div class="card" style="padding:14px;margin-top:6px"><div style="display:flex;justify-content:space-between;align-items:start"><div><div class="cell-bold">' + esc(f.title) + '</div><div style="font-size:12px;color:var(--t2);margin-top:5px;line-height:1.6">' + esc(f.description) + '</div>'
+          + (f.recommendation ? '<div style="font-size:12px;color:var(--accent);margin-top:6px">Rec: ' + esc(f.recommendation) + '</div>' : '')
+          + '<div style="font-size:11px;color:var(--t4);margin-top:6px">Control: ' + esc(f.control || '\u2014') + '</div></div><span class="badge ' + sevBadge + '">' + f.severity + '</span></div></div>';
+      }
+    }
+  }
+  modal(esc(a.name), header + tabs + body, 'lg');
+}
+
+async function toggleAuditArtifact(auditId, idx) {
+  const a = S.audits.find(x => x._id === auditId);
+  if (!a || !a.artifacts || !a.artifacts[idx]) return;
+  a.artifacts[idx].collected = !a.artifacts[idx].collected;
+  await API.update('audits', auditId, { artifacts: a.artifacts });
+  closeModal(); modalAuditDetail(auditId); render();
+}
+
+async function updateAuditArtifact(auditId, idx, field, value) {
+  const a = S.audits.find(x => x._id === auditId);
+  if (!a || !a.artifacts || !a.artifacts[idx]) return;
+  a.artifacts[idx][field] = value;
+  await API.update('audits', auditId, { artifacts: a.artifacts });
+}
+
+async function uploadAuditEvidence(auditId, idx) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const form = new FormData(); form.append('file', file);
+    try {
+      const resp = await fetch('/api/upload', { method: 'POST', body: form });
+      const result = await resp.json();
+      if (result.ok) {
+        const a = S.audits.find(x => x._id === auditId);
+        if (a && a.artifacts && a.artifacts[idx]) {
+          a.artifacts[idx].file = result.data.filename;
+          a.artifacts[idx].fileName = result.data.originalName;
+          if (!a.artifacts[idx].collected) a.artifacts[idx].collected = true;
+          await API.update('audits', auditId, { artifacts: a.artifacts });
+          closeModal(); modalAuditDetail(auditId); render();
+          toast('Evidence uploaded: ' + result.data.originalName);
+        }
+      }
+    } catch (err) { toast('Upload failed: ' + err.message, 'error'); }
+  };
+  input.click();
+}
+
+function addAuditArtifact(auditId) {
+  closeModal();
+  modal('Add Custom Artifact',
+    '<div class="fg"><label class="fl">Artifact Title</label><input class="fi" id="aaTitle" placeholder="e.g., Network Penetration Test Report"></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Type</label><select class="fs" id="aaType"><option>Evidence</option><option>Record</option><option>Report</option><option>Diagram</option><option>Agreement</option><option>Inventory</option><option>Register</option><option>Policy</option><option>Procedure</option><option>Standard</option></select></div><div class="fg"><label class="fl">Related Controls</label><input class="fi" id="aaCtrl" placeholder="e.g., Req 11.4, A.12.6.1"></div></div>',
+    'md',
+    '<button class="btn btn-secondary" onclick="closeModal();modalAuditDetail(\'' + auditId + '\')">Cancel</button><button class="btn btn-primary" onclick="saveAuditArtifact(\'' + auditId + '\')">Add Artifact</button>');
+}
+
+async function saveAuditArtifact(auditId) {
+  const title = document.querySelector('#aaTitle').value.trim(); if (!title) return;
+  const a = S.audits.find(x => x._id === auditId);
+  if (!a) return;
+  if (!a.artifacts) a.artifacts = [];
+  a.artifacts.push({ title: title, type: document.querySelector('#aaType').value, controls: document.querySelector('#aaCtrl').value, collected: false, url: '', file: '', fileName: '', notes: '' });
+  await API.update('audits', auditId, { artifacts: a.artifacts });
+  closeModal(); modalAuditDetail(auditId); render(); toast('Artifact added');
 }
 
 function modalNewFinding(aid) {
@@ -1148,29 +1270,105 @@ async function saveCSF2Score(subId, tier) {
 // ═══════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════════════════════════════════
-let rptTab='Executive Summary';
+let rptTab = 'Executive Summary';
 
 function pgReports() {
-  const tabs=['Executive Summary','Risk Register','Audit Findings'];
-  const cp=S.controls.length?Math.round(S.controls.filter(c=>c.status==='Implemented').length/S.controls.length*100):0;
-  const cr=S.risks.filter(r=>riskLevel(r.residualScore||0).level==='Critical');
-  const ar=S.risks.length?(S.risks.reduce((s,r)=>s+(r.residualScore||0),0)/S.risks.length).toFixed(1):'N/A';
-  const of_=S.findings.filter(f=>f.status==='Open');
-  let body='';
-  if(rptTab==='Executive Summary'){
-    body=`<div class="man-sec"><h4>Risk Posture</h4><p>${S.risks.length} identified risks — ${cr.length} critical, average residual: ${ar}</p></div>
-      <div class="man-sec"><h4>Compliance</h4><p>${cp}% implementation across ${S.controls.length} controls. ${S.controls.filter(c=>c.status==='Not Started').length} not started.</p></div>
-      <div class="man-sec"><h4>Audits</h4><p>${S.audits.length} total. ${S.audits.filter(a=>a.status==='In Progress').length} in progress. ${of_.length} open findings.</p></div>
-      <div class="man-sec"><h4>Governance</h4><p>${S.policies.length} documents. ${S.policies.filter(p=>p.status==='Approved').length} approved, ${S.policies.filter(p=>p.status==='Draft').length} draft.</p></div>`;
-  } else if(rptTab==='Risk Register'){
-    body=S.risks.length===0?'<div class="empty"><p>No risks</p></div>':S.risks.map(r=>{const rl=riskLevel(r.residualScore||0);return `<div class="man-sec"><h4>${esc(r.name)} <span class="badge ${rl.cls}" style="font-size:10px;vertical-align:middle">${rl.level}</span></h4><p>Category: ${r.category} · Owner: ${esc(r.owner||'—')} · Raw: ${r.rawScore} · Residual: ${r.residualScore} · Treatment: ${r.treatment}</p></div>`;}).join('');
+  const activeFws = S.config.activeFrameworks || [];
+  const allFws = Object.keys(FW);
+  const displayFws = activeFws.length > 0 ? allFws.filter(fw => activeFws.includes(fw)) : allFws;
+  const tabs = ['Executive Summary'].concat(displayFws.map(fw => fw + ' Report')).concat(['Risk Register', 'Audit Findings']);
+  if (!tabs.includes(rptTab)) rptTab = 'Executive Summary';
+
+  const timestamp = '<div style="font-size:11px;color:var(--t4);margin-bottom:24px">Generated ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}) + ' at ' + new Date().toLocaleTimeString() + '</div>';
+
+  let body = '';
+  if (rptTab === 'Executive Summary') {
+    const cp = S.controls.length ? Math.round(S.controls.filter(c => c.status === 'Implemented').length / S.controls.length * 100) : 0;
+    const cr = S.risks.filter(r => riskLevel(r.residualScore || 0).level === 'Critical');
+    const ar = S.risks.length ? (S.risks.reduce((s, r) => s + (r.residualScore || 0), 0) / S.risks.length).toFixed(1) : 'N/A';
+    const of_ = S.findings.filter(f => f.status === 'Open');
+    body = '<div class="man-sec"><h4>Risk Posture</h4><p>' + S.risks.length + ' identified risks \u2014 ' + cr.length + ' critical, average residual: ' + ar + '</p></div>'
+      + '<div class="man-sec"><h4>Compliance</h4><p>' + cp + '% implementation across ' + S.controls.length + ' controls. ' + S.controls.filter(c => c.status === 'Not Started').length + ' not started.</p></div>'
+      + '<div class="man-sec"><h4>Audits</h4><p>' + S.audits.length + ' total. ' + S.audits.filter(a => a.status === 'In Progress').length + ' in progress. ' + of_.length + ' open findings.</p></div>'
+      + '<div class="man-sec"><h4>Governance</h4><p>' + S.policies.length + ' artifacts tracked. ' + S.policies.filter(p => p.reqs && p.reqs.some(r => r.met)).length + ' with evidence.</p></div>';
+    // Per-framework summary
+    if (displayFws.length > 0) {
+      body += '<div class="man-sec"><h4>Framework Coverage</h4>';
+      for (const fw of displayFws) {
+        const fwc = S.controls.filter(c => c.framework === fw);
+        const impl = fwc.filter(c => c.status === 'Implemented').length;
+        const pct = fwc.length ? Math.round(impl / fwc.length * 100) : 0;
+        body += '<p style="margin-bottom:4px"><strong>' + esc(fw) + ':</strong> ' + impl + '/' + fwc.length + ' controls (' + pct + '%)</p>';
+      }
+      body += '</div>';
+    }
+  } else if (rptTab === 'Risk Register') {
+    body = S.risks.length === 0 ? '<div class="empty"><p>No risks</p></div>' : S.risks.map(function(r) { const rl = riskLevel(r.residualScore || 0); return '<div class="man-sec"><h4>' + esc(r.name) + ' <span class="badge ' + rl.cls + '" style="font-size:10px;vertical-align:middle">' + rl.level + '</span></h4><p>Category: ' + r.category + ' \u00b7 Owner: ' + esc(r.owner || '\u2014') + ' \u00b7 Raw: ' + r.rawScore + ' \u00b7 Residual: ' + r.residualScore + ' \u00b7 Treatment: ' + r.treatment + '</p></div>'; }).join('');
+  } else if (rptTab === 'Audit Findings') {
+    body = S.findings.length === 0 ? '<div class="empty"><p>No findings</p></div>' : S.findings.map(function(f) { const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low'; return '<div class="man-sec"><h4>' + esc(f.title) + ' <span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span></h4><p>' + esc(f.description) + (f.recommendation ? '<br>Recommendation: ' + esc(f.recommendation) : '') + '</p></div>'; }).join('');
   } else {
-    body=S.findings.length===0?'<div class="empty"><p>No findings</p></div>':S.findings.map(f=>`<div class="man-sec"><h4>${esc(f.title)} <span class="badge ${f.severity==='Critical'?'b-critical':f.severity==='High'?'b-high':f.severity==='Medium'?'b-medium':'b-low'}" style="font-size:10px;vertical-align:middle">${f.severity}</span></h4><p>${esc(f.description)}${f.recommendation?'<br>Recommendation: '+esc(f.recommendation):''}</p></div>`).join('');
+    // Framework-specific report
+    const fw = rptTab.replace(' Report', '');
+    const fwControls = S.controls.filter(c => c.framework === fw);
+    const impl = fwControls.filter(c => c.status === 'Implemented').length;
+    const partial = fwControls.filter(c => c.status === 'Partially Implemented').length;
+    const ns = fwControls.filter(c => c.status === 'Not Started').length;
+    const cov = fwControls.length ? Math.round((impl + partial * 0.5) / fwControls.length * 100) : 0;
+    const fwAudits = S.audits.filter(a => a.framework === fw);
+    const fwFindings = [];
+    for (const a of fwAudits) { for (const f of S.findings.filter(x => x.auditId === a._id)) fwFindings.push(f); }
+    const fwGov = [];
+    if (typeof GOV_ITEMS !== 'undefined') { for (const g of GOV_ITEMS) { if (g.fw[fw]) fwGov.push(g); } }
+    const fwGovDone = fwGov.filter(g => { const p = S.policies.find(x => x.title === g.t); return p && p.reqs && p.reqs.filter(r => r.met).length === (g.reqs || []).length; }).length;
+    const fwRef = FW[fw] ? FW[fw].ref : '';
+
+    body = '<div class="man-sec"><h4>Compliance Coverage</h4>'
+      + '<p><strong>' + cov + '%</strong> overall coverage across ' + fwControls.length + ' controls</p>'
+      + '<p>Implemented: ' + impl + ' \u00b7 Partial: ' + partial + ' \u00b7 Not Started: ' + ns + '</p>'
+      + (fwRef ? '<p><a href="' + esc(fwRef) + '" target="_blank" style="color:var(--accent)">Framework Reference \u2192</a></p>' : '') + '</div>';
+
+    body += '<div class="man-sec"><h4>Governance Artifacts</h4><p>' + fwGovDone + ' of ' + fwGov.length + ' required artifacts complete</p></div>';
+
+    body += '<div class="man-sec"><h4>Audits</h4>';
+    if (fwAudits.length === 0) { body += '<p>No audits for this framework</p>'; }
+    else {
+      for (const a of fwAudits) {
+        const arts = a.artifacts || [];
+        const artsDone = arts.filter(x => x.collected).length;
+        body += '<p><strong>' + esc(a.name) + '</strong> \u2014 <span class="badge ' + statusCls(a.status) + '" style="font-size:10px;vertical-align:middle">' + a.status + '</span> \u00b7 Evidence: ' + artsDone + '/' + arts.length + '</p>';
+      }
+    }
+    body += '</div>';
+
+    if (fwFindings.length > 0) {
+      body += '<div class="man-sec"><h4>Findings (' + fwFindings.length + ')</h4>';
+      for (const f of fwFindings) {
+        const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low';
+        body += '<p><span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span> ' + esc(f.title) + '</p>';
+      }
+      body += '</div>';
+    }
+
+    // Control status table
+    if (fwControls.length > 0) {
+      body += '<div class="man-sec"><h4>Control Status Detail</h4>'
+        + '<div class="table-wrap" style="border:none;margin-top:8px"><table><thead><tr><th>Control ID</th><th>Name</th><th>Status</th></tr></thead><tbody>';
+      for (const c of fwControls) {
+        body += '<tr><td class="cell-mono" style="color:var(--accent)">' + esc(c.controlId) + '</td><td>' + esc(c.name) + '</td><td><span class="badge ' + statusCls(c.status) + '">' + c.status + '</span></td></tr>';
+      }
+      body += '</tbody></table></div></div>';
+    }
   }
-  return `<div class="page">
-    <div class="page-head"><div><h2>Reports</h2><p>Generate compliance and risk reports</p></div></div>
-    <div class="tabs mb-24">${tabs.map(t=>`<button class="tab-btn ${rptTab===t?'on':''}" onclick="rptTab='${t}';render()">${t}</button>`).join('')}</div>
-    <div class="card"><h3 style="font-size:18px;font-weight:700;margin-bottom:4px">${rptTab}</h3><div style="font-size:11px;color:var(--t4);margin-bottom:24px">Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString()}</div>${body}</div></div>`;
+
+  let pillsHtml = '';
+  for (const t of tabs) {
+    pillsHtml += '<button class="tab-btn ' + (rptTab === t ? 'on' : '') + '" onclick="rptTab=\'' + t.replace(/'/g, "\\'") + '\';render()">' + esc(t) + '</button>';
+  }
+
+  return '<div class="page">'
+    + '<div class="page-head"><div><h2>Reports</h2><p>Framework-specific compliance and risk reports</p></div></div>'
+    + '<div class="tabs mb-24" style="flex-wrap:wrap">' + pillsHtml + '</div>'
+    + '<div class="card"><h3 style="font-size:18px;font-weight:700;margin-bottom:4px">' + esc(rptTab) + '</h3>' + timestamp + body + '</div></div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
