@@ -114,6 +114,7 @@ const NAV = [
   {s:'MODULES'},{id:'audits',l:'Audit Collection',i:'audit'},{id:'risks',l:'Risk Register',i:'risk'},
   {id:'benchmarks',l:'Benchmarks',i:'benchmark'},{id:'compliance',l:'Compliance',i:'compliance'},
   {id:'governance',l:'Governance',i:'governance'},{id:'csf2',l:'CSF 2.0 Assessment',i:'compliance'},
+  {id:'ssp',l:'800-53 SSP',i:'governance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
   {id:'settings',l:'Settings',i:'settings'},
   {s:'ADMIN',admin:true},{id:'users',l:'User Management',i:'settings',admin:true},{id:'auditlog',l:'Audit Log',i:'audit',admin:true},
@@ -143,41 +144,41 @@ const BM_SOURCES = [
 
 // ─── Cross-Framework Control Mapping ─────────────────────────────────────
 const CROSS_MAP = [
-  { domain:"Governance & Policy", map:{"NIST CSF":["ID.GV"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 12"],"GDPR":["Art.5"],"CMMC":["PM"]}},
-  { domain:"Asset Management", map:{"NIST CSF":["ID.AM"],"ISO 27001":["A.8"],"SOC 2":["CC6"],"PCI DSS":["Req 2"],"CMMC":["CM"]}},
-  { domain:"Business Environment", map:{"NIST CSF":["ID.BE"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"CMMC":["PM"]}},
-  { domain:"Risk Assessment", map:{"NIST CSF":["ID.RA"],"ISO 27001":["A.12"],"SOC 2":["CC3","CC4"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 6"],"GDPR":["Art.35"],"CMMC":["RA","RM"]}},
-  { domain:"Risk Strategy", map:{"NIST CSF":["ID.RM"],"ISO 27001":["A.5"],"SOC 2":["CC3"],"CMMC":["RM"]}},
-  { domain:"Supply Chain", map:{"NIST CSF":["ID.SC"],"ISO 27001":["A.15"],"SOC 2":["CC9"],"GDPR":["Art.28"],"CMMC":["PS"]}},
-  { domain:"Access Control", map:{"NIST CSF":["PR.AC"],"ISO 27001":["A.9"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(d)"],"PCI DSS":["Req 7","Req 8"],"GDPR":["Art.32"],"CMMC":["AC","IA"]}},
-  { domain:"Awareness & Training", map:{"NIST CSF":["PR.AT"],"ISO 27001":["A.7"],"SOC 2":["CC1","CC2"],"HIPAA":["§164.308(a)(2)"],"PCI DSS":["Req 12"],"CMMC":["AT"]}},
-  { domain:"Data Security", map:{"NIST CSF":["PR.DS"],"ISO 27001":["A.10","A.13"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(e)"],"PCI DSS":["Req 3","Req 4"],"GDPR":["Art.32","Art.25"],"CMMC":["SC"]}},
-  { domain:"Information Protection", map:{"NIST CSF":["PR.IP"],"ISO 27001":["A.12","A.14"],"SOC 2":["CC7","CC8"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 6"],"GDPR":["Art.25"],"CMMC":["CM","SI"]}},
-  { domain:"Maintenance", map:{"NIST CSF":["PR.MA"],"ISO 27001":["A.11"],"SOC 2":["CC6"],"HIPAA":["§164.310(a)"],"PCI DSS":["Req 6"],"CMMC":["MA"]}},
-  { domain:"Protective Technology", map:{"NIST CSF":["PR.PT"],"ISO 27001":["A.13"],"SOC 2":["CC6","CC7"],"HIPAA":["§164.312(e)"],"PCI DSS":["Req 1"],"GDPR":["Art.32"],"CMMC":["SC","AC"]}},
-  { domain:"Anomalies & Events", map:{"NIST CSF":["DE.AE"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10"],"CMMC":["AU","SI"]}},
-  { domain:"Continuous Monitoring", map:{"NIST CSF":["DE.CM"],"ISO 27001":["A.12"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10","Req 11"],"CMMC":["AU","CA"]}},
-  { domain:"Detection Processes", map:{"NIST CSF":["DE.DP"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 11"],"CMMC":["CA"]}},
-  { domain:"Response Planning", map:{"NIST CSF":["RS.RP"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["IR"]}},
-  { domain:"Response Communications", map:{"NIST CSF":["RS.CO"],"ISO 27001":["A.16"],"SOC 2":["CC2","CC7"],"HIPAA":["§164.308(a)(4)"],"GDPR":["Art.33"],"CMMC":["IR"]}},
-  { domain:"Response Analysis", map:{"NIST CSF":["RS.AN"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"]}},
-  { domain:"Response Mitigation", map:{"NIST CSF":["RS.MI"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"]}},
-  { domain:"Response Improvements", map:{"NIST CSF":["RS.IM"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC4"],"CMMC":["IR"]}},
-  { domain:"Recovery Planning", map:{"NIST CSF":["RC.RP"],"ISO 27001":["A.17"],"SOC 2":["A1"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["RE"]}},
-  { domain:"Recovery Improvements", map:{"NIST CSF":["RC.IM"],"ISO 27001":["A.17"],"SOC 2":["A1"],"CMMC":["RE"]}},
-  { domain:"Recovery Communications", map:{"NIST CSF":["RC.CO"],"ISO 27001":["A.17"],"SOC 2":["CC2"],"CMMC":["IR"]}},
-  { domain:"Physical Security", map:{"ISO 27001":["A.11"],"HIPAA":["§164.310(a)","§164.310(b)","§164.310(c)","§164.310(d)"],"PCI DSS":["Req 9"],"CMMC":["PE","MP"]}},
-  { domain:"Personnel Security", map:{"ISO 27001":["A.7"],"HIPAA":["§164.308(a)(3)"],"PCI DSS":["Req 12"],"CMMC":["PS"]}},
-  { domain:"Data Privacy & Rights", map:{"GDPR":["Art.6","Art.7","Art.9","Art.12-14","Art.15-20"],"SOC 2":["P1"],"HIPAA":["§164.312(c)"]}},
-  { domain:"Privacy by Design", map:{"GDPR":["Art.25","Art.30"],"SOC 2":["P1","PI1"],"CMMC":["PM"]}},
-  { domain:"Privacy Officer / DPO", map:{"GDPR":["Art.37"],"HIPAA":["§164.308(a)(2)"]}},
-  { domain:"Vulnerability Management", map:{"PCI DSS":["Req 5","Req 6"],"ISO 27001":["A.12"],"CMMC":["SI"]}},
-  { domain:"Network Security", map:{"PCI DSS":["Req 1"],"ISO 27001":["A.13"],"CMMC":["SC","AC"]}},
-  { domain:"Cryptography", map:{"ISO 27001":["A.10"],"PCI DSS":["Req 3","Req 4"],"CMMC":["SC"]}},
-  { domain:"Confidentiality", map:{"SOC 2":["C1"],"ISO 27001":["A.8"],"CMMC":["SC"]}},
-  { domain:"Availability & Recovery", map:{"SOC 2":["A1"],"ISO 27001":["A.17"],"CMMC":["RE"]}},
-  { domain:"Processing Integrity", map:{"SOC 2":["PI1"],"ISO 27001":["A.14"],"CMMC":["SI"]}},
-  { domain:"Monitoring & Assurance", map:{"SOC 2":["CC5"],"ISO 27001":["A.18"],"CMMC":["CA"]}},
+  { domain:"Governance & Policy", map:{"NIST CSF":["ID.GV"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 12"],"GDPR":["Art.5"],"CMMC":["PM"],"NIST 800-53":["PL-1","PL-2","PM-1","PM-9"]}},
+  { domain:"Asset Management", map:{"NIST CSF":["ID.AM"],"ISO 27001":["A.8"],"SOC 2":["CC6"],"PCI DSS":["Req 2"],"CMMC":["CM"],"NIST 800-53":["CM-8","PM-5"]}},
+  { domain:"Business Environment", map:{"NIST CSF":["ID.BE"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"CMMC":["PM"],"NIST 800-53":["PM-8","PM-11"]}},
+  { domain:"Risk Assessment", map:{"NIST CSF":["ID.RA"],"ISO 27001":["A.12"],"SOC 2":["CC3","CC4"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 6"],"GDPR":["Art.35"],"CMMC":["RA","RM"],"NIST 800-53":["RA-1","RA-2","RA-3","RA-5","RA-7"]}},
+  { domain:"Risk Strategy", map:{"NIST CSF":["ID.RM"],"ISO 27001":["A.5"],"SOC 2":["CC3"],"CMMC":["RM"],"NIST 800-53":["PM-9","PM-28","PM-29"]}},
+  { domain:"Supply Chain", map:{"NIST CSF":["ID.SC"],"ISO 27001":["A.15"],"SOC 2":["CC9"],"GDPR":["Art.28"],"CMMC":["PS"],"NIST 800-53":["SR-1","SR-2","SR-3","SR-6","SA-9"]}},
+  { domain:"Access Control", map:{"NIST CSF":["PR.AC"],"ISO 27001":["A.9"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(d)"],"PCI DSS":["Req 7","Req 8"],"GDPR":["Art.32"],"CMMC":["AC","IA"],"NIST 800-53":["AC-1","AC-2","AC-3","AC-5","AC-6","AC-17","IA-1","IA-2","IA-5"]}},
+  { domain:"Awareness & Training", map:{"NIST CSF":["PR.AT"],"ISO 27001":["A.7"],"SOC 2":["CC1","CC2"],"HIPAA":["§164.308(a)(2)"],"PCI DSS":["Req 12"],"CMMC":["AT"],"NIST 800-53":["AT-1","AT-2","AT-3","AT-4"]}},
+  { domain:"Data Security", map:{"NIST CSF":["PR.DS"],"ISO 27001":["A.10","A.13"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(e)"],"PCI DSS":["Req 3","Req 4"],"GDPR":["Art.32","Art.25"],"CMMC":["SC"],"NIST 800-53":["SC-8","SC-12","SC-13","SC-28","MP-4","MP-5"]}},
+  { domain:"Information Protection", map:{"NIST CSF":["PR.IP"],"ISO 27001":["A.12","A.14"],"SOC 2":["CC7","CC8"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 6"],"GDPR":["Art.25"],"CMMC":["CM","SI"],"NIST 800-53":["CM-2","CM-3","CM-6","CM-7","SA-3","SA-8","SI-2"]}},
+  { domain:"Maintenance", map:{"NIST CSF":["PR.MA"],"ISO 27001":["A.11"],"SOC 2":["CC6"],"HIPAA":["§164.310(a)"],"PCI DSS":["Req 6"],"CMMC":["MA"],"NIST 800-53":["MA-1","MA-2","MA-4","MA-5"]}},
+  { domain:"Protective Technology", map:{"NIST CSF":["PR.PT"],"ISO 27001":["A.13"],"SOC 2":["CC6","CC7"],"HIPAA":["§164.312(e)"],"PCI DSS":["Req 1"],"GDPR":["Art.32"],"CMMC":["SC","AC"],"NIST 800-53":["SC-7","AC-4","AU-1","AU-2","AU-12"]}},
+  { domain:"Anomalies & Events", map:{"NIST CSF":["DE.AE"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10"],"CMMC":["AU","SI"],"NIST 800-53":["SI-4","AU-6","IR-4","IR-5"]}},
+  { domain:"Continuous Monitoring", map:{"NIST CSF":["DE.CM"],"ISO 27001":["A.12"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10","Req 11"],"CMMC":["AU","CA"],"NIST 800-53":["CA-7","SI-4","RA-5","PM-31"]}},
+  { domain:"Detection Processes", map:{"NIST CSF":["DE.DP"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 11"],"CMMC":["CA"],"NIST 800-53":["CA-2","CA-7","PM-14"]}},
+  { domain:"Response Planning", map:{"NIST CSF":["RS.RP"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["IR"],"NIST 800-53":["IR-1","IR-4","IR-8"]}},
+  { domain:"Response Communications", map:{"NIST CSF":["RS.CO"],"ISO 27001":["A.16"],"SOC 2":["CC2","CC7"],"HIPAA":["§164.308(a)(4)"],"GDPR":["Art.33"],"CMMC":["IR"],"NIST 800-53":["IR-6","IR-7"]}},
+  { domain:"Response Analysis", map:{"NIST CSF":["RS.AN"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53":["IR-4","IR-5"]}},
+  { domain:"Response Mitigation", map:{"NIST CSF":["RS.MI"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53":["IR-4","IR-9"]}},
+  { domain:"Response Improvements", map:{"NIST CSF":["RS.IM"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC4"],"CMMC":["IR"],"NIST 800-53":["IR-3","IR-8"]}},
+  { domain:"Recovery Planning", map:{"NIST CSF":["RC.RP"],"ISO 27001":["A.17"],"SOC 2":["A1"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["RE"],"NIST 800-53":["CP-1","CP-2","CP-10"]}},
+  { domain:"Recovery Improvements", map:{"NIST CSF":["RC.IM"],"ISO 27001":["A.17"],"SOC 2":["A1"],"CMMC":["RE"],"NIST 800-53":["CP-2","CP-4"]}},
+  { domain:"Recovery Communications", map:{"NIST CSF":["RC.CO"],"ISO 27001":["A.17"],"SOC 2":["CC2"],"CMMC":["IR"],"NIST 800-53":["IR-6","CP-2"]}},
+  { domain:"Physical Security", map:{"ISO 27001":["A.11"],"HIPAA":["§164.310(a)","§164.310(b)","§164.310(c)","§164.310(d)"],"PCI DSS":["Req 9"],"CMMC":["PE","MP"],"NIST 800-53":["PE-1","PE-2","PE-3","PE-6","PE-8","MP-1","MP-2","MP-6"]}},
+  { domain:"Personnel Security", map:{"ISO 27001":["A.7"],"HIPAA":["§164.308(a)(3)"],"PCI DSS":["Req 12"],"CMMC":["PS"],"NIST 800-53":["PS-1","PS-2","PS-3","PS-4","PS-5","PS-6"]}},
+  { domain:"Data Privacy & Rights", map:{"GDPR":["Art.6","Art.7","Art.9","Art.12-14","Art.15-20"],"SOC 2":["P1"],"HIPAA":["§164.312(c)"],"NIST 800-53":["PT-1","PT-2","PT-3","PT-4","PT-5"]}},
+  { domain:"Privacy by Design", map:{"GDPR":["Art.25","Art.30"],"SOC 2":["P1","PI1"],"CMMC":["PM"],"NIST 800-53":["PM-18","PM-20","PT-3","SA-8"]}},
+  { domain:"Privacy Officer / DPO", map:{"GDPR":["Art.37"],"HIPAA":["§164.308(a)(2)"],"NIST 800-53":["PM-19"]}},
+  { domain:"Vulnerability Management", map:{"PCI DSS":["Req 5","Req 6"],"ISO 27001":["A.12"],"CMMC":["SI"],"NIST 800-53":["RA-5","SI-2","SI-3","SI-5"]}},
+  { domain:"Network Security", map:{"PCI DSS":["Req 1"],"ISO 27001":["A.13"],"CMMC":["SC","AC"],"NIST 800-53":["SC-7","SC-5","AC-4"]}},
+  { domain:"Cryptography", map:{"ISO 27001":["A.10"],"PCI DSS":["Req 3","Req 4"],"CMMC":["SC"],"NIST 800-53":["SC-12","SC-13","SC-8","SC-28"]}},
+  { domain:"Confidentiality", map:{"SOC 2":["C1"],"ISO 27001":["A.8"],"CMMC":["SC"],"NIST 800-53":["SC-28","AC-3","AC-4"]}},
+  { domain:"Availability & Recovery", map:{"SOC 2":["A1"],"ISO 27001":["A.17"],"CMMC":["RE"],"NIST 800-53":["CP-6","CP-7","CP-9","CP-10","SC-5"]}},
+  { domain:"Processing Integrity", map:{"SOC 2":["PI1"],"ISO 27001":["A.14"],"CMMC":["SI"],"NIST 800-53":["SI-7","SI-10","SI-11"]}},
+  { domain:"Monitoring & Assurance", map:{"SOC 2":["CC5"],"ISO 27001":["A.18"],"CMMC":["CA"],"NIST 800-53":["CA-2","CA-7","PM-6","PM-14"]}},
 ];
 
 function _prefixMatch(fwCtrls, controlId) {
@@ -246,7 +247,7 @@ function closeModal() { const o=$('#overlay'); if(o) o.remove(); }
 // ─── Render Router ─────────────────────────────────────────────────────────
 function render() {
   const c = $('#content');
-  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
+  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,ssp:pgSSP,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
   c.innerHTML = (fn[S.module]||pgDash)();
   if (S.module==='settings') settingsPostRender();
 }
@@ -1426,6 +1427,438 @@ async function saveCSF2Score(subId, tier) {
     await API.create('config', S.config);
   }
   render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NIST 800-53 SYSTEM SECURITY PLAN (SSP)
+// ═══════════════════════════════════════════════════════════════════════════
+let sspTab = 'identification';
+let sspExpandedFamily = null;
+
+const SSP_FAMILIES = [
+  {id:'AC',name:'Access Control'},{id:'AT',name:'Awareness and Training'},{id:'AU',name:'Audit and Accountability'},
+  {id:'CA',name:'Assessment, Authorization, and Monitoring'},{id:'CM',name:'Configuration Management'},
+  {id:'CP',name:'Contingency Planning'},{id:'IA',name:'Identification and Authentication'},
+  {id:'IR',name:'Incident Response'},{id:'MA',name:'Maintenance'},{id:'MP',name:'Media Protection'},
+  {id:'PE',name:'Physical and Environmental Protection'},{id:'PL',name:'Planning'},
+  {id:'PM',name:'Program Management'},{id:'PS',name:'Personnel Security'},
+  {id:'PT',name:'PII Processing and Transparency'},{id:'RA',name:'Risk Assessment'},
+  {id:'SA',name:'System and Services Acquisition'},{id:'SC',name:'System and Communications Protection'},
+  {id:'SI',name:'System and Information Integrity'},{id:'SR',name:'Supply Chain Risk Management'}
+];
+
+function _sspData() { return S.config.sspData || {}; }
+
+async function _saveSSP(field, value) {
+  if (!S.config.sspData) S.config.sspData = {};
+  S.config.sspData[field] = value;
+  if (S.config._id) {
+    await API.update('config', S.config._id, { sspData: S.config.sspData });
+  } else {
+    S.config._id = 'main-config';
+    await API.create('config', S.config);
+  }
+}
+
+async function _saveSSPCtrl(controlId, field, value) {
+  if (!S.config.sspData) S.config.sspData = {};
+  if (!S.config.sspData.controls) S.config.sspData.controls = {};
+  if (!S.config.sspData.controls[controlId]) S.config.sspData.controls[controlId] = {};
+  S.config.sspData.controls[controlId][field] = value;
+  if (S.config._id) {
+    await API.update('config', S.config._id, { sspData: S.config.sspData });
+  } else {
+    S.config._id = 'main-config';
+    await API.create('config', S.config);
+  }
+}
+
+function _sspField(key, label, placeholder, type) {
+  const d = _sspData();
+  const val = esc(d[key] || '');
+  if (type === 'textarea') {
+    return '<div class="fg" style="margin-bottom:14px"><label class="fl">' + label + '</label>'
+      + '<textarea class="ft" placeholder="' + esc(placeholder) + '" onchange="_saveSSP(\'' + key + '\',this.value)" style="min-height:80px">' + val + '</textarea></div>';
+  }
+  if (type === 'select') {
+    return '<div class="fg" style="margin-bottom:14px"><label class="fl">' + label + '</label>'
+      + '<select class="fs" onchange="_saveSSP(\'' + key + '\',this.value)">' + placeholder + '</select></div>';
+  }
+  if (type === 'date') {
+    return '<div class="fg" style="margin-bottom:14px"><label class="fl">' + label + '</label>'
+      + '<input class="fi" type="date" value="' + val + '" onchange="_saveSSP(\'' + key + '\',this.value)"></div>';
+  }
+  return '<div class="fg" style="margin-bottom:14px"><label class="fl">' + label + '</label>'
+    + '<input class="fi" type="text" placeholder="' + esc(placeholder) + '" value="' + val + '" onchange="_saveSSP(\'' + key + '\',this.value)"></div>';
+}
+
+function _sspSelect(key, label, options) {
+  const d = _sspData();
+  const cur = d[key] || '';
+  let opts = '<option value="">— Select —</option>';
+  for (const o of options) opts += '<option value="' + esc(o) + '"' + (cur === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+  return '<div class="fg" style="margin-bottom:14px"><label class="fl">' + label + '</label>'
+    + '<select class="fs" onchange="_saveSSP(\'' + key + '\',this.value)">' + opts + '</select></div>';
+}
+
+function _sspProgress() {
+  const d = _sspData();
+  const ctrls = d.controls || {};
+  const fw = FW['NIST 800-53'];
+  if (!fw) return { total: 0, documented: 0, pct: 0 };
+  const total = fw.controls.length;
+  let documented = 0;
+  for (const c of fw.controls) {
+    const cd = ctrls[c[0]];
+    if (cd && cd.implStatus && cd.implStatus !== 'Not Assessed') documented++;
+  }
+  return { total, documented, pct: total ? Math.round(documented / total * 100) : 0 };
+}
+
+function _sspSectionProgress() {
+  const d = _sspData();
+  const fields = {
+    identification: ['systemName','systemAbbrev','systemId','systemVersion'],
+    categorization: ['infoTypesDesc','confidentiality','integrity','availability','overallCat'],
+    personnel: ['systemOwner','systemOwnerTitle','systemOwnerEmail','authOfficial','authOfficialTitle','isso','issoEmail'],
+    description: ['purposeDesc','environmentDesc','boundaryDesc'],
+    interconnections: ['interconnDesc'],
+    monitoring: ['monitorStrategy']
+  };
+  const result = {};
+  for (const [sec, keys] of Object.entries(fields)) {
+    const filled = keys.filter(k => d[k] && d[k].trim()).length;
+    result[sec] = { filled, total: keys.length, pct: keys.length ? Math.round(filled / keys.length * 100) : 0 };
+  }
+  return result;
+}
+
+function pgSSP() {
+  const d = _sspData();
+  const prog = _sspProgress();
+  const secProg = _sspSectionProgress();
+  const tabs = [
+    {id:'identification',l:'System Identification'},
+    {id:'categorization',l:'Security Categorization'},
+    {id:'personnel',l:'Responsible Personnel'},
+    {id:'description',l:'System Description'},
+    {id:'interconnections',l:'Interconnections'},
+    {id:'controls',l:'Control Implementation'},
+    {id:'monitoring',l:'Continuous Monitoring'}
+  ];
+
+  // Overall completion
+  let totalFields = 0, filledFields = 0;
+  for (const s of Object.values(secProg)) { totalFields += s.total; filledFields += s.filled; }
+  totalFields += prog.total;
+  filledFields += prog.documented;
+  const overallPct = totalFields ? Math.round(filledFields / totalFields * 100) : 0;
+
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>NIST 800-53 Rev 5 — System Security Plan</h2>'
+    + '<p>Document system security controls and implementation details per NIST SP 800-18 / 800-53 Rev 5' + (d.systemName ? ' — <strong>' + esc(d.systemName) + '</strong>' : '') + '</p></div>'
+    + '<div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="sspExport()">Export SSP</button></div></div>';
+
+  // Stats
+  html += '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + overallPct + '%</div><div class="stat-lbl">Overall Completion</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + prog.documented + '/' + prog.total + '</div><div class="stat-lbl">Controls Documented</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--green)">' + prog.pct + '%</div><div class="stat-lbl">Control Coverage</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:' + (d.overallCat === 'High' ? 'var(--red)' : d.overallCat === 'Moderate' ? 'var(--yellow)' : d.overallCat === 'Low' ? 'var(--green)' : 'var(--t3)') + '">' + esc(d.overallCat || '—') + '</div><div class="stat-lbl">FIPS 199 Categorization</div></div></div>';
+
+  // Completion bar
+  html += '<div class="card mb-24"><div class="card-head"><h3>SSP Completion</h3><span class="cell-mono" style="color:var(--green)">' + overallPct + '%</span></div>'
+    + '<div class="pbar" style="height:8px"><div class="pfill" style="width:' + overallPct + '%;background:var(--green)"></div></div></div>';
+
+  // Tabs
+  html += '<div class="pills mb-24">';
+  for (const t of tabs) {
+    const sp = secProg[t.id];
+    const badge = (t.id === 'controls') ? ' (' + prog.documented + '/' + prog.total + ')' : (sp ? ' (' + sp.filled + '/' + sp.total + ')' : '');
+    html += '<button class="pill ' + (sspTab === t.id ? 'on' : '') + '" onclick="sspTab=\'' + t.id + '\';render()">' + t.l + badge + '</button>';
+  }
+  html += '</div>';
+
+  // Tab content
+  html += '<div class="card" style="padding:24px">';
+  if (sspTab === 'identification') html += _sspTabIdentification();
+  else if (sspTab === 'categorization') html += _sspTabCategorization();
+  else if (sspTab === 'personnel') html += _sspTabPersonnel();
+  else if (sspTab === 'description') html += _sspTabDescription();
+  else if (sspTab === 'interconnections') html += _sspTabInterconnections();
+  else if (sspTab === 'controls') html += _sspTabControls();
+  else if (sspTab === 'monitoring') html += _sspTabMonitoring();
+  html += '</div></div>';
+  return html;
+}
+
+function _sspTabIdentification() {
+  const d = _sspData();
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">1. System Identification</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Provide basic identifying information for the system covered by this SSP.</p>'
+    + '<div class="grid g2">'
+    + _sspField('systemName', 'System Name', 'e.g., Enterprise Resource Planning System', 'text')
+    + _sspField('systemAbbrev', 'System Abbreviation / Acronym', 'e.g., ERP', 'text')
+    + '</div>'
+    + '<div class="grid g2">'
+    + _sspField('systemId', 'Unique System Identifier', 'e.g., SYS-2024-001', 'text')
+    + _sspField('systemVersion', 'System Version / Release', 'e.g., v3.2.1', 'text')
+    + '</div>'
+    + '<div class="grid g2">'
+    + _sspSelect('systemType', 'System Type', ['Major Application','General Support System','Minor Application','Subsystem','Cloud Service','Hybrid'])
+    + _sspSelect('operationalStatus', 'Operational Status', ['Operational','Under Development','Major Modification','Disposition','Other'])
+    + '</div>'
+    + '<div class="grid g2">'
+    + _sspField('sspDate', 'SSP Date', '', 'date')
+    + _sspField('sspRevision', 'SSP Revision Number', 'e.g., 1.0', 'text')
+    + '</div>';
+}
+
+function _sspTabCategorization() {
+  const d = _sspData();
+  const levels = ['Low','Moderate','High'];
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">2. Security Categorization (FIPS 199)</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Categorize the system based on the potential impact of a loss of confidentiality, integrity, or availability per FIPS 199 and NIST SP 800-60.</p>'
+    + _sspField('infoTypesDesc', 'Information Types Processed, Stored, or Transmitted', 'Describe the types of information handled by this system (e.g., PII, financial records, CUI, health data)...', 'textarea')
+    + '<div style="border:1px solid var(--border-0);border-radius:var(--radius);padding:16px;margin-bottom:16px;background:var(--bg-2)">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:12px">Impact Levels</div>'
+    + '<div class="grid g3">'
+    + _sspSelect('confidentiality', 'Confidentiality Impact', levels)
+    + _sspSelect('integrity', 'Integrity Impact', levels)
+    + _sspSelect('availability', 'Availability Impact', levels)
+    + '</div></div>'
+    + _sspSelect('overallCat', 'Overall System Categorization (High-Water Mark)', levels)
+    + _sspField('categorizationJustification', 'Categorization Justification', 'Explain why this categorization was selected, reference any tailoring decisions...', 'textarea');
+}
+
+function _sspTabPersonnel() {
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">3. Responsible Personnel</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Identify key individuals responsible for the system and its security.</p>'
+    + '<div style="border:1px solid var(--border-0);border-radius:var(--radius);padding:16px;margin-bottom:16px;background:var(--bg-2)">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px">System Owner</div>'
+    + '<div class="grid g3">'
+    + _sspField('systemOwner', 'Name', 'Full name', 'text')
+    + _sspField('systemOwnerTitle', 'Title / Role', 'e.g., Director of IT', 'text')
+    + _sspField('systemOwnerEmail', 'Email', 'email@org.gov', 'text')
+    + '</div></div>'
+    + '<div style="border:1px solid var(--border-0);border-radius:var(--radius);padding:16px;margin-bottom:16px;background:var(--bg-2)">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px">Authorizing Official (AO)</div>'
+    + '<div class="grid g3">'
+    + _sspField('authOfficial', 'Name', 'Full name', 'text')
+    + _sspField('authOfficialTitle', 'Title / Role', 'e.g., CISO', 'text')
+    + _sspField('authOfficialEmail', 'Email', 'email@org.gov', 'text')
+    + '</div></div>'
+    + '<div style="border:1px solid var(--border-0);border-radius:var(--radius);padding:16px;margin-bottom:16px;background:var(--bg-2)">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px">Information System Security Officer (ISSO)</div>'
+    + '<div class="grid g3">'
+    + _sspField('isso', 'Name', 'Full name', 'text')
+    + _sspField('issoTitle', 'Title / Role', 'e.g., Security Analyst', 'text')
+    + _sspField('issoEmail', 'Email', 'email@org.gov', 'text')
+    + '</div></div>'
+    + '<div style="border:1px solid var(--border-0);border-radius:var(--radius);padding:16px;background:var(--bg-2)">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px">Additional Contacts</div>'
+    + '<div class="grid g3">'
+    + _sspField('addlContactName', 'Name', 'Full name', 'text')
+    + _sspField('addlContactTitle', 'Title / Role', 'e.g., System Administrator', 'text')
+    + _sspField('addlContactEmail', 'Email', 'email@org.gov', 'text')
+    + '</div></div>';
+}
+
+function _sspTabDescription() {
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">4. System Description</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Describe the system purpose, environment, and authorization boundary.</p>'
+    + _sspField('purposeDesc', 'System Purpose and Function', 'Describe the purpose, mission, and primary functions of this system...', 'textarea')
+    + _sspField('environmentDesc', 'System Environment', 'Describe the technical environment including hardware, software, operating systems, network topology, and physical location...', 'textarea')
+    + _sspField('boundaryDesc', 'Authorization Boundary', 'Define the boundary of the system — what components are included, what is excluded, and where shared responsibility boundaries exist...', 'textarea')
+    + _sspField('userDesc', 'System Users and Access', 'Describe user types, roles, approximate number of users, and how access is managed...', 'textarea')
+    + _sspField('dataFlowDesc', 'Data Flow Description', 'Describe how data enters, moves through, and exits the system...', 'textarea')
+    + _sspField('portProtocols', 'Ports, Protocols, and Services', 'List key ports, protocols, and services used by the system (e.g., 443/TCP HTTPS, 22/TCP SSH)...', 'textarea');
+}
+
+function _sspTabInterconnections() {
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">5. System Interconnections</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Document all connections between this system and other internal or external systems. Include Interconnection Security Agreements (ISAs) or Memoranda of Understanding (MOUs) where applicable.</p>'
+    + _sspField('interconnDesc', 'Interconnected Systems', 'Describe all external and internal system interconnections, including the system name, organization, connection type, data exchanged, and agreement status for each...', 'textarea')
+    + _sspField('interconnAgreements', 'ISA / MOU Status', 'List active Interconnection Security Agreements and Memoranda of Understanding with their status and dates...', 'textarea')
+    + _sspField('externalServices', 'External Services and APIs', 'Document third-party services, cloud providers, and external APIs the system depends on...', 'textarea');
+}
+
+function _sspTabControls() {
+  const d = _sspData();
+  const ctrls = d.controls || {};
+  const fw = FW['NIST 800-53'];
+  if (!fw) return '<p>NIST 800-53 framework data not found.</p>';
+
+  let html = '<h3 style="margin-bottom:16px;color:var(--t1)">6. Control Implementation Statements</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">For each applicable NIST 800-53 Rev 5 control, document the implementation status and describe how the control is implemented within the system.</p>';
+
+  // Family accordion
+  for (const fam of SSP_FAMILIES) {
+    const famControls = fw.controls.filter(c => c[0].startsWith(fam.id + '-'));
+    const documented = famControls.filter(c => { const cd = ctrls[c[0]]; return cd && cd.implStatus && cd.implStatus !== 'Not Assessed'; }).length;
+    const pct = famControls.length ? Math.round(documented / famControls.length * 100) : 0;
+    const barColor = pct === 100 ? 'var(--green)' : pct > 0 ? 'var(--yellow)' : 'var(--t4)';
+    const isExpanded = sspExpandedFamily === fam.id;
+
+    html += '<div style="border:1px solid var(--border-0);border-radius:var(--radius);margin-bottom:8px;overflow:hidden">'
+      + '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-2);cursor:pointer" onclick="sspExpandedFamily=sspExpandedFamily===\'' + fam.id + '\'?null:\'' + fam.id + '\';render()">'
+      + '<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);min-width:24px">' + fam.id + '</span>'
+      + '<span style="font-size:13px;font-weight:600;color:var(--t1);flex:1">' + esc(fam.name) + '</span>'
+      + '<div style="width:80px"><div class="pbar" style="height:4px"><div class="pfill" style="width:' + pct + '%;background:' + barColor + '"></div></div></div>'
+      + '<span style="font-family:var(--mono);font-size:11px;color:var(--t2);min-width:40px;text-align:right">' + documented + '/' + famControls.length + '</span>'
+      + '<span style="color:var(--t3)">' + (isExpanded ? '\u25B2' : '\u25BC') + '</span></div>';
+
+    if (isExpanded) {
+      for (const ctrl of famControls) {
+        const cid = ctrl[0];
+        const cd = ctrls[cid] || {};
+        const st = cd.implStatus || 'Not Assessed';
+        const stColors = {'Implemented':'var(--green)','Partially Implemented':'var(--yellow)','Planned':'var(--blue)','Alternative':'var(--accent)','Not Applicable':'var(--t3)','Not Assessed':'var(--t4)'};
+        const stColor = stColors[st] || 'var(--t4)';
+
+        html += '<div style="padding:14px 16px;border-top:1px solid var(--border-0)">'
+          + '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:10px">'
+          + '<div style="flex:1"><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent)">' + cid + '</span>'
+          + '<div style="font-size:13px;color:var(--t1);margin-top:2px">' + esc(ctrl[1]) + '</div></div>'
+          + '<select class="ctrl-status-sel" style="min-width:170px;border-left:3px solid ' + stColor + '" onchange="_saveSSPCtrl(\'' + cid + '\',\'implStatus\',this.value);render()">'
+          + '<option value="Not Assessed"' + (st === 'Not Assessed' ? ' selected' : '') + '>Not Assessed</option>'
+          + '<option value="Implemented"' + (st === 'Implemented' ? ' selected' : '') + '>Implemented</option>'
+          + '<option value="Partially Implemented"' + (st === 'Partially Implemented' ? ' selected' : '') + '>Partially Implemented</option>'
+          + '<option value="Planned"' + (st === 'Planned' ? ' selected' : '') + '>Planned</option>'
+          + '<option value="Alternative"' + (st === 'Alternative' ? ' selected' : '') + '>Alternative Implementation</option>'
+          + '<option value="Not Applicable"' + (st === 'Not Applicable' ? ' selected' : '') + '>Not Applicable</option></select></div>'
+          + '<textarea class="ft" style="min-height:60px;font-size:12px" placeholder="Describe how this control is implemented within the system, who is responsible, and what tools or processes support it..." onchange="_saveSSPCtrl(\'' + cid + '\',\'narrative\',this.value)">' + esc(cd.narrative || '') + '</textarea>'
+          + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<input class="fi" style="flex:1;font-size:11px;padding:6px 10px" placeholder="Responsible party / control owner..." value="' + esc(cd.owner || '') + '" onchange="_saveSSPCtrl(\'' + cid + '\',\'owner\',this.value)">'
+          + '<input class="fi" style="flex:1;font-size:11px;padding:6px 10px" placeholder="Implementation date (YYYY-MM-DD)..." value="' + esc(cd.implDate || '') + '" onchange="_saveSSPCtrl(\'' + cid + '\',\'implDate\',this.value)">'
+          + '</div></div>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function _sspTabMonitoring() {
+  return '<h3 style="margin-bottom:16px;color:var(--t1)">7. Continuous Monitoring Strategy</h3>'
+    + '<p style="font-size:13px;color:var(--t2);margin-bottom:20px">Describe the ongoing monitoring approach for the system\'s security posture per NIST SP 800-137.</p>'
+    + _sspField('monitorStrategy', 'Continuous Monitoring Strategy', 'Describe the strategy for ongoing monitoring including automated tools, frequency of assessments, and reporting mechanisms...', 'textarea')
+    + _sspField('monitorFrequency', 'Assessment Frequency', 'Document how often security controls are assessed (e.g., quarterly vulnerability scans, annual penetration tests, monthly access reviews)...', 'textarea')
+    + _sspField('monitorTools', 'Monitoring Tools and Automation', 'List the tools used for continuous monitoring (e.g., SIEM, vulnerability scanner, configuration compliance tools)...', 'textarea')
+    + _sspField('poamRef', 'POA&M Reference', 'Reference to the system Plan of Action and Milestones (POA&M) document tracking open findings and remediation...', 'textarea')
+    + _sspField('ato', 'Authorization to Operate (ATO)', 'Document ATO status, date granted, expiration date, and any conditions or limitations...', 'textarea');
+}
+
+function sspExport() {
+  const d = _sspData();
+  const ctrls = d.controls || {};
+  const fw = FW['NIST 800-53'];
+  const lines = [];
+  const hr = '='.repeat(80);
+  const hr2 = '-'.repeat(60);
+  lines.push(hr);
+  lines.push('SYSTEM SECURITY PLAN (SSP)');
+  lines.push('NIST SP 800-53 Rev 5');
+  lines.push(hr);
+  lines.push('Generated: ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}));
+  lines.push('');
+
+  lines.push('1. SYSTEM IDENTIFICATION');
+  lines.push(hr2);
+  lines.push('System Name:         ' + (d.systemName || ''));
+  lines.push('Abbreviation:        ' + (d.systemAbbrev || ''));
+  lines.push('Unique Identifier:   ' + (d.systemId || ''));
+  lines.push('Version:             ' + (d.systemVersion || ''));
+  lines.push('System Type:         ' + (d.systemType || ''));
+  lines.push('Operational Status:  ' + (d.operationalStatus || ''));
+  lines.push('SSP Date:            ' + (d.sspDate || ''));
+  lines.push('SSP Revision:        ' + (d.sspRevision || ''));
+  lines.push('');
+
+  lines.push('2. SECURITY CATEGORIZATION (FIPS 199)');
+  lines.push(hr2);
+  lines.push('Information Types:   ' + (d.infoTypesDesc || ''));
+  lines.push('Confidentiality:     ' + (d.confidentiality || ''));
+  lines.push('Integrity:           ' + (d.integrity || ''));
+  lines.push('Availability:        ' + (d.availability || ''));
+  lines.push('Overall Category:    ' + (d.overallCat || ''));
+  lines.push('Justification:       ' + (d.categorizationJustification || ''));
+  lines.push('');
+
+  lines.push('3. RESPONSIBLE PERSONNEL');
+  lines.push(hr2);
+  lines.push('System Owner:        ' + (d.systemOwner || '') + ' | ' + (d.systemOwnerTitle || '') + ' | ' + (d.systemOwnerEmail || ''));
+  lines.push('Authorizing Official: ' + (d.authOfficial || '') + ' | ' + (d.authOfficialTitle || '') + ' | ' + (d.authOfficialEmail || ''));
+  lines.push('ISSO:                ' + (d.isso || '') + ' | ' + (d.issoTitle || '') + ' | ' + (d.issoEmail || ''));
+  lines.push('');
+
+  lines.push('4. SYSTEM DESCRIPTION');
+  lines.push(hr2);
+  lines.push('Purpose: ' + (d.purposeDesc || ''));
+  lines.push('');
+  lines.push('Environment: ' + (d.environmentDesc || ''));
+  lines.push('');
+  lines.push('Authorization Boundary: ' + (d.boundaryDesc || ''));
+  lines.push('');
+  lines.push('Users and Access: ' + (d.userDesc || ''));
+  lines.push('');
+  lines.push('Data Flow: ' + (d.dataFlowDesc || ''));
+  lines.push('');
+  lines.push('Ports/Protocols/Services: ' + (d.portProtocols || ''));
+  lines.push('');
+
+  lines.push('5. SYSTEM INTERCONNECTIONS');
+  lines.push(hr2);
+  lines.push(d.interconnDesc || '');
+  lines.push('');
+  lines.push('ISA/MOU Status: ' + (d.interconnAgreements || ''));
+  lines.push('');
+  lines.push('External Services: ' + (d.externalServices || ''));
+  lines.push('');
+
+  lines.push('6. CONTROL IMPLEMENTATION STATEMENTS');
+  lines.push(hr2);
+  if (fw) {
+    for (const fam of SSP_FAMILIES) {
+      const famCtrls = fw.controls.filter(c => c[0].startsWith(fam.id + '-'));
+      lines.push('');
+      lines.push('--- ' + fam.id + ': ' + fam.name + ' ---');
+      for (const ctrl of famCtrls) {
+        const cd = ctrls[ctrl[0]] || {};
+        lines.push('');
+        lines.push(ctrl[0] + ': ' + ctrl[1]);
+        lines.push('  Status:       ' + (cd.implStatus || 'Not Assessed'));
+        lines.push('  Owner:        ' + (cd.owner || ''));
+        lines.push('  Impl. Date:   ' + (cd.implDate || ''));
+        lines.push('  Narrative:    ' + (cd.narrative || ''));
+      }
+    }
+  }
+  lines.push('');
+
+  lines.push('7. CONTINUOUS MONITORING');
+  lines.push(hr2);
+  lines.push('Strategy: ' + (d.monitorStrategy || ''));
+  lines.push('');
+  lines.push('Frequency: ' + (d.monitorFrequency || ''));
+  lines.push('');
+  lines.push('Tools: ' + (d.monitorTools || ''));
+  lines.push('');
+  lines.push('POA&M Reference: ' + (d.poamRef || ''));
+  lines.push('');
+  lines.push('ATO: ' + (d.ato || ''));
+  lines.push('');
+  lines.push(hr);
+  lines.push('END OF SYSTEM SECURITY PLAN');
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'SSP_NIST_800-53_' + (d.systemAbbrev || 'system').replace(/\s/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('SSP exported successfully');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
