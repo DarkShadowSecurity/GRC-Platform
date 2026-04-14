@@ -1,0 +1,16 @@
+# Demo site — client-facing demo with fake data (never commit)
+demo-site/
+
+# Node
+node_modules/
+
+# Database files
+*.db
+db/data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code — session-local settings
+.claude/
