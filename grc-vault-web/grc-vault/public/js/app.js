@@ -37,13 +37,22 @@ const API = {
   async clearAll()        { return _apiFetch('/api/data/clear', { method:'POST', headers:_authHeaders() }); },
   async health()          { return (await fetch('/api/health')).json(); },
   async testProxy(url,tk) { return _apiFetch('/api/proxy/test', { method:'POST', headers:_authHeaders(), body:JSON.stringify({url,token:tk}) }); },
-  async login(u, p)       { return (await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) })).json(); },
+  async login(u, p, mfa)  { return (await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p,mfaCode:mfa}) })).json(); },
   async getUsers()        { return _apiFetch('/api/users', { headers: _authHeadersNoBody() }); },
   async createUser(d)     { return _apiFetch('/api/users', { method:'POST', headers:_authHeaders(), body:JSON.stringify(d) }); },
   async updateUser(id,d)  { return _apiFetch('/api/users/' + id, { method:'PUT', headers:_authHeaders(), body:JSON.stringify(d) }); },
   async deleteUser(id)    { return _apiFetch('/api/users/' + id, { method:'DELETE', headers:_authHeadersNoBody() }); },
   async getAuditLog(limit){ return _apiFetch('/api/auditlog?limit=' + (limit||200), { headers: _authHeadersNoBody() }); },
   async changePassword(c,n){ return _apiFetch('/api/auth/change-password', { method:'POST', headers:_authHeaders(), body:JSON.stringify({currentPassword:c,newPassword:n}) }); },
+  // ── MFA ───────────────────────────────────────────────────────────────
+  async mfaSetup(type)    { return _apiFetch('/api/auth/mfa/setup', { method:'POST', headers:_authHeaders(), body:JSON.stringify({type}) }); },
+  async mfaVerifySetup(c) { return _apiFetch('/api/auth/mfa/verify-setup', { method:'POST', headers:_authHeaders(), body:JSON.stringify({code:c}) }); },
+  async mfaDisable(p)     { return _apiFetch('/api/auth/mfa/disable', { method:'POST', headers:_authHeaders(), body:JSON.stringify({password:p}) }); },
+  async mfaDuoEnroll(u)   { return _apiFetch('/api/auth/mfa/duo/enroll', { method:'POST', headers:_authHeaders(), body:JSON.stringify({duoUsername:u}) }); },
+  // ── SSO ───────────────────────────────────────────────────────────────
+  async getSSOConfig()    { return _apiFetch('/api/auth/sso/config', { headers:_authHeadersNoBody() }); },
+  async saveSSOConfig(c)  { return _apiFetch('/api/auth/sso/config', { method:'POST', headers:_authHeaders(), body:JSON.stringify(c) }); },
+  async ssoAdLogin(u,p)   { return (await fetch('/api/auth/sso/ad/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) })).json(); },
 };
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -113,8 +122,9 @@ const NAV = [
   {s:'OVERVIEW'},{id:'dashboard',l:'Dashboard',i:'dashboard'},
   {s:'MODULES'},{id:'audits',l:'Audit Collection',i:'audit'},{id:'risks',l:'Risk Register',i:'risk'},
   {id:'benchmarks',l:'Benchmarks',i:'benchmark'},{id:'compliance',l:'Compliance',i:'compliance'},
-  {id:'governance',l:'Governance',i:'governance'},{id:'csf2',l:'CSF 2.0 Assessment',i:'compliance'},
-  {id:'ssp',l:'800-53 SSP',i:'governance'},
+  {id:'csf2',l:'NIST CSF 2.0',i:'compliance'},
+  {id:'governance',l:'Governance',i:'governance'},
+  {id:'ssp',l:'800-53 Rev 5 SSP',i:'governance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
   {id:'settings',l:'Settings',i:'settings'},
   {s:'ADMIN',admin:true},{id:'users',l:'User Management',i:'settings',admin:true},{id:'auditlog',l:'Audit Log',i:'audit',admin:true},
@@ -144,41 +154,41 @@ const BM_SOURCES = [
 
 // ─── Cross-Framework Control Mapping ─────────────────────────────────────
 const CROSS_MAP = [
-  { domain:"Governance & Policy", map:{"NIST CSF":["ID.GV"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 12"],"GDPR":["Art.5"],"CMMC":["PM"],"NIST 800-53":["PL-1","PL-2","PM-1","PM-9"]}},
-  { domain:"Asset Management", map:{"NIST CSF":["ID.AM"],"ISO 27001":["A.8"],"SOC 2":["CC6"],"PCI DSS":["Req 2"],"CMMC":["CM"],"NIST 800-53":["CM-8","PM-5"]}},
-  { domain:"Business Environment", map:{"NIST CSF":["ID.BE"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"CMMC":["PM"],"NIST 800-53":["PM-8","PM-11"]}},
-  { domain:"Risk Assessment", map:{"NIST CSF":["ID.RA"],"ISO 27001":["A.12"],"SOC 2":["CC3","CC4"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 6"],"GDPR":["Art.35"],"CMMC":["RA","RM"],"NIST 800-53":["RA-1","RA-2","RA-3","RA-5","RA-7"]}},
-  { domain:"Risk Strategy", map:{"NIST CSF":["ID.RM"],"ISO 27001":["A.5"],"SOC 2":["CC3"],"CMMC":["RM"],"NIST 800-53":["PM-9","PM-28","PM-29"]}},
-  { domain:"Supply Chain", map:{"NIST CSF":["ID.SC"],"ISO 27001":["A.15"],"SOC 2":["CC9"],"GDPR":["Art.28"],"CMMC":["PS"],"NIST 800-53":["SR-1","SR-2","SR-3","SR-6","SA-9"]}},
-  { domain:"Access Control", map:{"NIST CSF":["PR.AC"],"ISO 27001":["A.9"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(d)"],"PCI DSS":["Req 7","Req 8"],"GDPR":["Art.32"],"CMMC":["AC","IA"],"NIST 800-53":["AC-1","AC-2","AC-3","AC-5","AC-6","AC-17","IA-1","IA-2","IA-5"]}},
-  { domain:"Awareness & Training", map:{"NIST CSF":["PR.AT"],"ISO 27001":["A.7"],"SOC 2":["CC1","CC2"],"HIPAA":["§164.308(a)(2)"],"PCI DSS":["Req 12"],"CMMC":["AT"],"NIST 800-53":["AT-1","AT-2","AT-3","AT-4"]}},
-  { domain:"Data Security", map:{"NIST CSF":["PR.DS"],"ISO 27001":["A.10","A.13"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(e)"],"PCI DSS":["Req 3","Req 4"],"GDPR":["Art.32","Art.25"],"CMMC":["SC"],"NIST 800-53":["SC-8","SC-12","SC-13","SC-28","MP-4","MP-5"]}},
-  { domain:"Information Protection", map:{"NIST CSF":["PR.IP"],"ISO 27001":["A.12","A.14"],"SOC 2":["CC7","CC8"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 6"],"GDPR":["Art.25"],"CMMC":["CM","SI"],"NIST 800-53":["CM-2","CM-3","CM-6","CM-7","SA-3","SA-8","SI-2"]}},
-  { domain:"Maintenance", map:{"NIST CSF":["PR.MA"],"ISO 27001":["A.11"],"SOC 2":["CC6"],"HIPAA":["§164.310(a)"],"PCI DSS":["Req 6"],"CMMC":["MA"],"NIST 800-53":["MA-1","MA-2","MA-4","MA-5"]}},
-  { domain:"Protective Technology", map:{"NIST CSF":["PR.PT"],"ISO 27001":["A.13"],"SOC 2":["CC6","CC7"],"HIPAA":["§164.312(e)"],"PCI DSS":["Req 1"],"GDPR":["Art.32"],"CMMC":["SC","AC"],"NIST 800-53":["SC-7","AC-4","AU-1","AU-2","AU-12"]}},
-  { domain:"Anomalies & Events", map:{"NIST CSF":["DE.AE"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10"],"CMMC":["AU","SI"],"NIST 800-53":["SI-4","AU-6","IR-4","IR-5"]}},
-  { domain:"Continuous Monitoring", map:{"NIST CSF":["DE.CM"],"ISO 27001":["A.12"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS":["Req 10","Req 11"],"CMMC":["AU","CA"],"NIST 800-53":["CA-7","SI-4","RA-5","PM-31"]}},
-  { domain:"Detection Processes", map:{"NIST CSF":["DE.DP"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(1)"],"PCI DSS":["Req 11"],"CMMC":["CA"],"NIST 800-53":["CA-2","CA-7","PM-14"]}},
-  { domain:"Response Planning", map:{"NIST CSF":["RS.RP"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["IR"],"NIST 800-53":["IR-1","IR-4","IR-8"]}},
-  { domain:"Response Communications", map:{"NIST CSF":["RS.CO"],"ISO 27001":["A.16"],"SOC 2":["CC2","CC7"],"HIPAA":["§164.308(a)(4)"],"GDPR":["Art.33"],"CMMC":["IR"],"NIST 800-53":["IR-6","IR-7"]}},
-  { domain:"Response Analysis", map:{"NIST CSF":["RS.AN"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53":["IR-4","IR-5"]}},
-  { domain:"Response Mitigation", map:{"NIST CSF":["RS.MI"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53":["IR-4","IR-9"]}},
-  { domain:"Response Improvements", map:{"NIST CSF":["RS.IM"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC4"],"CMMC":["IR"],"NIST 800-53":["IR-3","IR-8"]}},
-  { domain:"Recovery Planning", map:{"NIST CSF":["RC.RP"],"ISO 27001":["A.17"],"SOC 2":["A1"],"HIPAA":["§164.308(a)(4)"],"PCI DSS":["Req 12"],"CMMC":["RE"],"NIST 800-53":["CP-1","CP-2","CP-10"]}},
-  { domain:"Recovery Improvements", map:{"NIST CSF":["RC.IM"],"ISO 27001":["A.17"],"SOC 2":["A1"],"CMMC":["RE"],"NIST 800-53":["CP-2","CP-4"]}},
-  { domain:"Recovery Communications", map:{"NIST CSF":["RC.CO"],"ISO 27001":["A.17"],"SOC 2":["CC2"],"CMMC":["IR"],"NIST 800-53":["IR-6","CP-2"]}},
-  { domain:"Physical Security", map:{"ISO 27001":["A.11"],"HIPAA":["§164.310(a)","§164.310(b)","§164.310(c)","§164.310(d)"],"PCI DSS":["Req 9"],"CMMC":["PE","MP"],"NIST 800-53":["PE-1","PE-2","PE-3","PE-6","PE-8","MP-1","MP-2","MP-6"]}},
-  { domain:"Personnel Security", map:{"ISO 27001":["A.7"],"HIPAA":["§164.308(a)(3)"],"PCI DSS":["Req 12"],"CMMC":["PS"],"NIST 800-53":["PS-1","PS-2","PS-3","PS-4","PS-5","PS-6"]}},
-  { domain:"Data Privacy & Rights", map:{"GDPR":["Art.6","Art.7","Art.9","Art.12-14","Art.15-20"],"SOC 2":["P1"],"HIPAA":["§164.312(c)"],"NIST 800-53":["PT-1","PT-2","PT-3","PT-4","PT-5"]}},
-  { domain:"Privacy by Design", map:{"GDPR":["Art.25","Art.30"],"SOC 2":["P1","PI1"],"CMMC":["PM"],"NIST 800-53":["PM-18","PM-20","PT-3","SA-8"]}},
-  { domain:"Privacy Officer / DPO", map:{"GDPR":["Art.37"],"HIPAA":["§164.308(a)(2)"],"NIST 800-53":["PM-19"]}},
-  { domain:"Vulnerability Management", map:{"PCI DSS":["Req 5","Req 6"],"ISO 27001":["A.12"],"CMMC":["SI"],"NIST 800-53":["RA-5","SI-2","SI-3","SI-5"]}},
-  { domain:"Network Security", map:{"PCI DSS":["Req 1"],"ISO 27001":["A.13"],"CMMC":["SC","AC"],"NIST 800-53":["SC-7","SC-5","AC-4"]}},
-  { domain:"Cryptography", map:{"ISO 27001":["A.10"],"PCI DSS":["Req 3","Req 4"],"CMMC":["SC"],"NIST 800-53":["SC-12","SC-13","SC-8","SC-28"]}},
-  { domain:"Confidentiality", map:{"SOC 2":["C1"],"ISO 27001":["A.8"],"CMMC":["SC"],"NIST 800-53":["SC-28","AC-3","AC-4"]}},
-  { domain:"Availability & Recovery", map:{"SOC 2":["A1"],"ISO 27001":["A.17"],"CMMC":["RE"],"NIST 800-53":["CP-6","CP-7","CP-9","CP-10","SC-5"]}},
-  { domain:"Processing Integrity", map:{"SOC 2":["PI1"],"ISO 27001":["A.14"],"CMMC":["SI"],"NIST 800-53":["SI-7","SI-10","SI-11"]}},
-  { domain:"Monitoring & Assurance", map:{"SOC 2":["CC5"],"ISO 27001":["A.18"],"CMMC":["CA"],"NIST 800-53":["CA-2","CA-7","PM-6","PM-14"]}},
+  { domain:"Governance & Policy", map:{"NIST CSF":["ID.GV"],"NIST CSF 2.0":["GV.PO","GV.OV","GV.RR"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"HIPAA":["§164.308(a)(1)"],"PCI DSS v4.0":["Req 12"],"GDPR":["Art.5"],"CMMC":["PM"],"NIST 800-53 Rev 5":["PL-1","PL-2","PM-1","PM-9"],"TISAX":["1.1.1","1.2.1"],"HITRUST CSF":["00.a","04.a","04.b"],"NYDFS 500":["500.2","500.3","500.4"]}},
+  { domain:"Asset Management", map:{"NIST CSF":["ID.AM"],"NIST CSF 2.0":["ID.AM"],"ISO 27001":["A.8"],"SOC 2":["CC6"],"PCI DSS v4.0":["Req 2"],"CMMC":["CM"],"NIST 800-53 Rev 5":["CM-8","PM-5"],"HITRUST CSF":["07.a","07.b","07.c"],"NYDFS 500":["500.13"]}},
+  { domain:"Business Environment", map:{"NIST CSF":["ID.BE"],"ISO 27001":["A.5"],"SOC 2":["CC1"],"CMMC":["PM"],"NIST 800-53 Rev 5":["PM-8","PM-11"]}},
+  { domain:"Risk Assessment", map:{"NIST CSF":["ID.RA"],"NIST CSF 2.0":["ID.RA","GV.RM"],"ISO 27001":["A.12"],"SOC 2":["CC3","CC4"],"HIPAA":["§164.308(a)(1)"],"PCI DSS v4.0":["Req 6"],"GDPR":["Art.35"],"CMMC":["RA","RM"],"NIST 800-53 Rev 5":["RA-1","RA-2","RA-3","RA-5","RA-7"],"TISAX":["1.3.2"],"HITRUST CSF":["03.a","03.b","03.c","03.d"],"NYDFS 500":["500.9"]}},
+  { domain:"Risk Strategy", map:{"NIST CSF":["ID.RM"],"ISO 27001":["A.5"],"SOC 2":["CC3"],"CMMC":["RM"],"NIST 800-53 Rev 5":["PM-9","PM-28","PM-29"]}},
+  { domain:"Supply Chain", map:{"NIST CSF":["ID.SC"],"ISO 27001":["A.15"],"SOC 2":["CC9"],"GDPR":["Art.28"],"CMMC":["PS"],"NIST 800-53 Rev 5":["SR-1","SR-2","SR-3","SR-6","SA-9"]}},
+  { domain:"Access Control", map:{"NIST CSF":["PR.AC"],"NIST CSF 2.0":["PR.AA"],"ISO 27001":["A.9"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(d)"],"PCI DSS v4.0":["Req 7","Req 8"],"GDPR":["Art.32"],"CMMC":["AC","IA"],"NIST 800-53 Rev 5":["AC-1","AC-2","AC-3","AC-5","AC-6","AC-17","IA-1","IA-2","IA-5"],"TISAX":["4.1.1","4.1.2","4.1.3","4.2.1"],"HITRUST CSF":["01.a","01.b","01.c","01.q"],"NYDFS 500":["500.7","500.12"],"CCPA":["§1798.100"]}},
+  { domain:"Awareness & Training", map:{"NIST CSF":["PR.AT"],"NIST CSF 2.0":["PR.AT"],"ISO 27001":["A.7"],"SOC 2":["CC1","CC2"],"HIPAA":["§164.308(a)(2)"],"PCI DSS v4.0":["Req 12"],"CMMC":["AT"],"NIST 800-53 Rev 5":["AT-1","AT-2","AT-3","AT-4"],"TISAX":["2.1.3"],"HITRUST CSF":["02.e"],"NYDFS 500":["500.14"]}},
+  { domain:"Data Security", map:{"NIST CSF":["PR.DS"],"NIST CSF 2.0":["PR.DS"],"ISO 27001":["A.10","A.13"],"SOC 2":["CC6"],"HIPAA":["§164.312(a)","§164.312(e)"],"PCI DSS v4.0":["Req 3","Req 4"],"GDPR":["Art.32","Art.25"],"CMMC":["SC"],"NIST 800-53 Rev 5":["SC-8","SC-12","SC-13","SC-28","MP-4","MP-5"],"TISAX":["5.2.7","5.3.1"],"HITRUST CSF":["10.f","10.g"],"NYDFS 500":["500.15"],"CCPA":["CPRA.8"]}},
+  { domain:"Information Protection", map:{"NIST CSF":["PR.IP"],"ISO 27001":["A.12","A.14"],"SOC 2":["CC7","CC8"],"HIPAA":["§164.308(a)(4)"],"PCI DSS v4.0":["Req 6"],"GDPR":["Art.25"],"CMMC":["CM","SI"],"NIST 800-53 Rev 5":["CM-2","CM-3","CM-6","CM-7","SA-3","SA-8","SI-2"]}},
+  { domain:"Maintenance", map:{"NIST CSF":["PR.MA"],"ISO 27001":["A.11"],"SOC 2":["CC6"],"HIPAA":["§164.310(a)"],"PCI DSS v4.0":["Req 6"],"CMMC":["MA"],"NIST 800-53 Rev 5":["MA-1","MA-2","MA-4","MA-5"]}},
+  { domain:"Protective Technology", map:{"NIST CSF":["PR.PT"],"ISO 27001":["A.13"],"SOC 2":["CC6","CC7"],"HIPAA":["§164.312(e)"],"PCI DSS v4.0":["Req 1"],"GDPR":["Art.32"],"CMMC":["SC","AC"],"NIST 800-53 Rev 5":["SC-7","AC-4","AU-1","AU-2","AU-12"]}},
+  { domain:"Anomalies & Events", map:{"NIST CSF":["DE.AE"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS v4.0":["Req 10"],"CMMC":["AU","SI"],"NIST 800-53 Rev 5":["SI-4","AU-6","IR-4","IR-5"]}},
+  { domain:"Continuous Monitoring", map:{"NIST CSF":["DE.CM"],"ISO 27001":["A.12"],"SOC 2":["CC7"],"HIPAA":["§164.312(b)"],"PCI DSS v4.0":["Req 10","Req 11"],"CMMC":["AU","CA"],"NIST 800-53 Rev 5":["CA-7","SI-4","RA-5","PM-31"]}},
+  { domain:"Detection Processes", map:{"NIST CSF":["DE.DP"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(1)"],"PCI DSS v4.0":["Req 11"],"CMMC":["CA"],"NIST 800-53 Rev 5":["CA-2","CA-7","PM-14"]}},
+  { domain:"Response Planning", map:{"NIST CSF":["RS.RP"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"HIPAA":["§164.308(a)(4)"],"PCI DSS v4.0":["Req 12"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-1","IR-4","IR-8"]}},
+  { domain:"Response Communications", map:{"NIST CSF":["RS.CO"],"ISO 27001":["A.16"],"SOC 2":["CC2","CC7"],"HIPAA":["§164.308(a)(4)"],"GDPR":["Art.33"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-6","IR-7"]}},
+  { domain:"Response Analysis", map:{"NIST CSF":["RS.AN"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-4","IR-5"]}},
+  { domain:"Response Mitigation", map:{"NIST CSF":["RS.MI"],"ISO 27001":["A.16"],"SOC 2":["CC7"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-4","IR-9"]}},
+  { domain:"Response Improvements", map:{"NIST CSF":["RS.IM"],"ISO 27001":["A.16","A.18"],"SOC 2":["CC4"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-3","IR-8"]}},
+  { domain:"Recovery Planning", map:{"NIST CSF":["RC.RP"],"ISO 27001":["A.17"],"SOC 2":["A1"],"HIPAA":["§164.308(a)(4)"],"PCI DSS v4.0":["Req 12"],"CMMC":["RE"],"NIST 800-53 Rev 5":["CP-1","CP-2","CP-10"]}},
+  { domain:"Recovery Improvements", map:{"NIST CSF":["RC.IM"],"ISO 27001":["A.17"],"SOC 2":["A1"],"CMMC":["RE"],"NIST 800-53 Rev 5":["CP-2","CP-4"]}},
+  { domain:"Recovery Communications", map:{"NIST CSF":["RC.CO"],"ISO 27001":["A.17"],"SOC 2":["CC2"],"CMMC":["IR"],"NIST 800-53 Rev 5":["IR-6","CP-2"]}},
+  { domain:"Physical Security", map:{"ISO 27001":["A.11"],"HIPAA":["§164.310(a)","§164.310(b)","§164.310(c)","§164.310(d)"],"PCI DSS v4.0":["Req 9"],"CMMC":["PE","MP"],"NIST 800-53 Rev 5":["PE-1","PE-2","PE-3","PE-6","PE-8","MP-1","MP-2","MP-6"]}},
+  { domain:"Personnel Security", map:{"ISO 27001":["A.7"],"HIPAA":["§164.308(a)(3)"],"PCI DSS v4.0":["Req 12"],"CMMC":["PS"],"NIST 800-53 Rev 5":["PS-1","PS-2","PS-3","PS-4","PS-5","PS-6"]}},
+  { domain:"Data Privacy & Rights", map:{"GDPR":["Art.6","Art.7","Art.9","Art.12-14","Art.15-20"],"SOC 2":["P1"],"HIPAA":["§164.312(c)"],"NIST 800-53 Rev 5":["PT-1","PT-2","PT-3","PT-4","PT-5"],"CCPA":["§1798.100","§1798.105","§1798.110","§1798.115","§1798.120","§1798.121"],"HITRUST CSF":["13.c","13.d","13.h","13.i"]}},
+  { domain:"Privacy by Design", map:{"GDPR":["Art.25","Art.30"],"SOC 2":["P1","PI1"],"CMMC":["PM"],"NIST 800-53 Rev 5":["PM-18","PM-20","PT-3","SA-8"],"CCPA":["CPRA.1","CPRA.2","CPRA.4"],"HITRUST CSF":["13.a","13.b"]}},
+  { domain:"Privacy Officer / DPO", map:{"GDPR":["Art.37"],"HIPAA":["§164.308(a)(2)"],"NIST 800-53 Rev 5":["PM-19"]}},
+  { domain:"Vulnerability Management", map:{"PCI DSS v4.0":["Req 5","Req 6"],"ISO 27001":["A.12"],"CMMC":["SI"],"NIST 800-53 Rev 5":["RA-5","SI-2","SI-3","SI-5"]}},
+  { domain:"Network Security", map:{"PCI DSS v4.0":["Req 1"],"ISO 27001":["A.13"],"CMMC":["SC","AC"],"NIST 800-53 Rev 5":["SC-7","SC-5","AC-4"]}},
+  { domain:"Cryptography", map:{"ISO 27001":["A.10"],"PCI DSS v4.0":["Req 3","Req 4"],"CMMC":["SC"],"NIST 800-53 Rev 5":["SC-12","SC-13","SC-8","SC-28"]}},
+  { domain:"Confidentiality", map:{"SOC 2":["C1"],"ISO 27001":["A.8"],"CMMC":["SC"],"NIST 800-53 Rev 5":["SC-28","AC-3","AC-4"]}},
+  { domain:"Availability & Recovery", map:{"SOC 2":["A1"],"ISO 27001":["A.17"],"CMMC":["RE"],"NIST 800-53 Rev 5":["CP-6","CP-7","CP-9","CP-10","SC-5"]}},
+  { domain:"Processing Integrity", map:{"SOC 2":["PI1"],"ISO 27001":["A.14"],"CMMC":["SI"],"NIST 800-53 Rev 5":["SI-7","SI-10","SI-11"]}},
+  { domain:"Monitoring & Assurance", map:{"SOC 2":["CC5"],"ISO 27001":["A.18"],"CMMC":["CA"],"NIST 800-53 Rev 5":["CA-2","CA-7","PM-6","PM-14"]}},
 ];
 
 function _prefixMatch(fwCtrls, controlId) {
@@ -1286,7 +1296,7 @@ function pgCSF2() {
   const overallScore = fnData.reduce((s, d) => s + d.score, 0) / (fnData.filter(d => d.score > 0).length || 1);
 
   let html = '<div class="page">'
-    + '<div class="page-head"><div><h2>NIST CSF 2.0 Assessment</h2><p>Assess organizational maturity across the 6 core functions, categories, and subcategories</p></div></div>'
+    + '<div class="page-head"><div><h2>NIST CSF 2.0 Assessment</h2><p>Assess organizational maturity across the 6 core CSF 2.0 functions (Govern, Identify, Protect, Detect, Respond, Recover) — all categories and subcategories</p></div></div>'
     + '<div class="tabs mb-24">'
     + '<button class="tab-btn ' + (csf2View === 'assessment' ? 'on' : '') + '" onclick="csf2View=\'assessment\';render()">Assessment</button>'
     + '<button class="tab-btn ' + (csf2View === 'report' ? 'on' : '') + '" onclick="csf2View=\'report\';render()">Maturity Report</button></div>';
@@ -1504,7 +1514,7 @@ function _sspSelect(key, label, options) {
 function _sspProgress() {
   const d = _sspData();
   const ctrls = d.controls || {};
-  const fw = FW['NIST 800-53'];
+  const fw = FW['NIST 800-53 Rev 5'];
   if (!fw) return { total: 0, documented: 0, pct: 0 };
   const total = fw.controls.length;
   let documented = 0;
@@ -1686,7 +1696,7 @@ function _sspTabInterconnections() {
 function _sspTabControls() {
   const d = _sspData();
   const ctrls = d.controls || {};
-  const fw = FW['NIST 800-53'];
+  const fw = FW['NIST 800-53 Rev 5'];
   if (!fw) return '<p>NIST 800-53 framework data not found.</p>';
 
   let html = '<h3 style="margin-bottom:16px;color:var(--t1)">6. Control Implementation Statements</h3>'
@@ -1752,7 +1762,7 @@ function _sspTabMonitoring() {
 function sspExport() {
   const d = _sspData();
   const ctrls = d.controls || {};
-  const fw = FW['NIST 800-53'];
+  const fw = FW['NIST 800-53 Rev 5'];
   const lines = [];
   const hr = '='.repeat(80);
   const hr2 = '-'.repeat(60);
@@ -2085,8 +2095,12 @@ async function doClear() {
 function pgUsers() {
   if (!currentUser || currentUser.role !== 'admin') return '<div class="page"><div class="empty"><p>Admin access required</p></div></div>';
   let html = '<div class="page">'
-    + '<div class="page-head"><div><h2>User Management</h2><p>Manage user accounts and access to the platform</p></div>'
-    + '<div class="page-head-actions"><button class="btn btn-primary" onclick="modalNewUser()">' + I.plus + ' Add User</button></div></div>'
+    + '<div class="page-head"><div><h2>User Management</h2><p>Manage user accounts, MFA enrollment, and SSO providers</p></div>'
+    + '<div class="page-head-actions">'
+    + '<button class="btn btn-secondary" onclick="modalSSOConfig()">' + I.link + ' SSO Configuration</button>'
+    + '<button class="btn btn-secondary" onclick="modalMyMFA()">' + I.settings + ' My MFA</button>'
+    + '<button class="btn btn-primary" onclick="modalNewUser()">' + I.plus + ' Add User</button>'
+    + '</div></div>'
     + '<div id="usersTable"><div class="empty"><p>Loading users...</p></div></div></div>';
   setTimeout(loadUsersTable, 50);
   return html;
@@ -2097,24 +2111,34 @@ async function loadUsersTable() {
   const users = result.data || [];
   const el = document.querySelector('#usersTable');
   if (!el) return;
-  if (users.length === 0) { el.innerHTML = '<div class="empty"><p>No users found</p></div>'; return; }
+  if (users.length === 0) { el.textContent = ''; const empty = document.createElement('div'); empty.className='empty'; const p=document.createElement('p'); p.textContent='No users found'; empty.appendChild(p); el.appendChild(empty); return; }
+  const mfaTypeLabels = { google: 'Google Auth', microsoft: 'MS Authenticator', totp: 'TOTP', duo: 'Duo' };
   let rows = '';
   for (const u of users) {
     const roleBadge = u.role === 'admin' ? 'b-critical' : u.role === 'auditor' ? 'b-info' : 'b-low';
     const statusBadge = u.disabled ? '<span class="badge b-neutral">Disabled</span>' : '<span class="badge b-low">Active</span>';
+    const mfaLabel = mfaTypeLabels[u.mfaType] || u.mfaType || 'MFA';
+    const mfaBadge = u.mfaEnabled
+      ? '<span class="badge b-low" title="' + esc(mfaLabel) + '">\u2713 ' + esc(mfaLabel) + '</span>'
+      : '<span class="badge b-neutral">Off</span>';
+    const ssoBadge = u.ssoProvider
+      ? '<span class="badge b-info" style="font-size:9px">' + esc(u.ssoProvider.toUpperCase()) + '</span>'
+      : '<span class="cell-dim">\u2014</span>';
     rows += '<tr>'
       + '<td class="cell-bold">' + esc(u.name) + '</td>'
       + '<td class="cell-mono">' + esc(u.username) + '</td>'
       + '<td class="cell-dim">' + esc(u.email || '\u2014') + '</td>'
       + '<td><span class="badge ' + roleBadge + '">' + esc(u.role) + '</span></td>'
       + '<td>' + statusBadge + '</td>'
+      + '<td>' + mfaBadge + '</td>'
+      + '<td>' + ssoBadge + '</td>'
       + '<td class="cell-mono">' + (u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '\u2014') + '</td>'
       + '<td class="cell-actions">'
       + '<button class="btn btn-ghost btn-sm" onclick="modalEditUser(\'' + u._id + '\')" title="Edit">' + I.settings + '</button>'
       + (u.username !== 'admin' ? '<button class="btn btn-ghost btn-sm" onclick="deleteUser(\'' + u._id + '\')" title="Delete">' + I.trash + '</button>' : '')
       + '</td></tr>';
   }
-  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th class="cell-actions"></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>MFA</th><th>SSO</th><th>Created</th><th class="cell-actions"></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 function modalNewUser() {
@@ -2140,10 +2164,22 @@ async function modalEditUser(id) {
   const result = await API.getUsers();
   const u = (result.data || []).find(x => x._id === id);
   if (!u) return;
+  const mfaTypeLabels = { google: 'Google Authenticator', microsoft: 'Microsoft Authenticator', totp: 'TOTP', duo: 'Duo' };
+  const mfaStatusLine = u.mfaEnabled
+    ? '<span style="color:var(--green);font-weight:600">\u2713 Enabled</span> \u00b7 <span style="color:var(--t2)">' + esc(mfaTypeLabels[u.mfaType] || u.mfaType || 'TOTP') + '</span>'
+    : '<span style="color:var(--t3)">Not enrolled</span>';
+  const ssoLine = u.ssoProvider
+    ? '<span class="badge b-info">' + esc(u.ssoProvider.toUpperCase()) + '</span>'
+    : '<span style="color:var(--t3)">Local account</span>';
   modal('Edit User \u2014 ' + esc(u.username),
     '<div class="fr fr2"><div class="fg"><label class="fl">Full Name</label><input class="fi" id="euName" value="' + esc(u.name) + '"></div><div class="fg"><label class="fl">Email</label><input class="fi" id="euEmail" value="' + esc(u.email || '') + '"></div></div>'
     + '<div class="fr fr2"><div class="fg"><label class="fl">Role</label><select class="fs" id="euRole"><option value="user"' + (u.role === 'user' ? ' selected' : '') + '>User</option><option value="auditor"' + (u.role === 'auditor' ? ' selected' : '') + '>Auditor</option><option value="admin"' + (u.role === 'admin' ? ' selected' : '') + '>Admin</option></select></div><div class="fg"><label class="fl">Status</label><select class="fs" id="euStatus"><option value="false"' + (!u.disabled ? ' selected' : '') + '>Active</option><option value="true"' + (u.disabled ? ' selected' : '') + '>Disabled</option></select></div></div>'
-    + '<div class="fg"><label class="fl">New Password (leave blank to keep current)</label><input class="fi" id="euPass" type="password" placeholder="Leave blank to keep current"></div>',
+    + '<div class="fg"><label class="fl">New Password (leave blank to keep current)</label><input class="fi" id="euPass" type="password" placeholder="Leave blank to keep current"></div>'
+    + '<div class="card" style="padding:14px;background:var(--bg-input);margin-top:8px"><div class="fl" style="margin-bottom:6px">Multi-Factor Authentication</div>'
+    + '<div style="font-size:13px;margin-bottom:10px">' + mfaStatusLine + '</div>'
+    + (u.mfaEnabled ? '<label class="fw-check-inline"><input type="checkbox" id="euResetMfa"> <span>Reset MFA enrollment on next login</span></label>' : '<div style="font-size:11px;color:var(--t3)">User can enroll their own factor from the My MFA panel after they log in.</div>')
+    + '</div>'
+    + '<div class="card" style="padding:14px;background:var(--bg-input);margin-top:8px"><div class="fl" style="margin-bottom:6px">SSO Provider</div><div>' + ssoLine + '</div></div>',
     'md',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditUser(\'' + id + '\')">Save Changes</button>');
 }
@@ -2152,9 +2188,145 @@ async function saveEditUser(id) {
   const updates = { name: document.querySelector('#euName').value.trim(), email: document.querySelector('#euEmail').value.trim(), role: document.querySelector('#euRole').value, disabled: document.querySelector('#euStatus').value === 'true' };
   const newPass = document.querySelector('#euPass').value;
   if (newPass) { if (newPass.length < 8) { toast('Password must be at least 8 characters', 'error'); return; } updates.password = newPass; }
+  const resetEl = document.querySelector('#euResetMfa');
+  if (resetEl && resetEl.checked) updates.resetMfa = true;
   const result = await API.updateUser(id, updates);
   if (result.ok) { closeModal(); loadUsersTable(); toast('User updated'); }
   else { toast(result.error || 'Failed to update user', 'error'); }
+}
+
+// ─── My MFA enrollment (current user) ──────────────────────────────────────
+async function modalMyMFA() {
+  const u = currentUser || {};
+  const enrolled = !!u.mfaEnabled;
+  const typeLabels = { google: 'Google Authenticator', microsoft: 'Microsoft Authenticator', totp: 'TOTP', duo: 'Duo' };
+  let body = '';
+  if (enrolled) {
+    body = '<div class="card" style="padding:16px;background:var(--green-bg)"><div style="font-size:14px;font-weight:600;color:var(--green)">\u2713 MFA is enabled</div>'
+      + '<div style="font-size:12px;color:var(--t2);margin-top:4px">Method: ' + esc(typeLabels[u.mfaType] || u.mfaType || 'TOTP') + '</div></div>'
+      + '<div class="fg" style="margin-top:14px"><label class="fl">Disable MFA — confirm your password</label><input class="fi" id="mfaDisablePass" type="password" placeholder="Current password"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-danger" onclick="doDisableMFA()">Disable MFA</button></div>';
+  } else {
+    body = '<p style="font-size:13px;color:var(--t2);margin-bottom:14px">Choose your MFA method. After enrolling, you will be required to enter a one-time code on every login.</p>'
+      + '<div class="grid g3" style="margin-bottom:14px">'
+      + '<button class="btn btn-secondary" style="height:auto;padding:14px;flex-direction:column;gap:6px" onclick="startMFASetup(\'google\')"><div style="font-weight:700">Google Authenticator</div><div style="font-size:10px;color:var(--t3)">TOTP via QR code</div></button>'
+      + '<button class="btn btn-secondary" style="height:auto;padding:14px;flex-direction:column;gap:6px" onclick="startMFASetup(\'microsoft\')"><div style="font-weight:700">Microsoft Authenticator</div><div style="font-size:10px;color:var(--t3)">TOTP via QR code</div></button>'
+      + '<button class="btn btn-secondary" style="height:auto;padding:14px;flex-direction:column;gap:6px" onclick="startDuoEnroll()"><div style="font-weight:700">Cisco Duo</div><div style="font-size:10px;color:var(--t3)">Push notification</div></button>'
+      + '</div>'
+      + '<div id="mfaSetupArea"></div>';
+  }
+  modal('My Multi-Factor Authentication', body, 'md');
+}
+
+async function startMFASetup(type) {
+  const area = document.querySelector('#mfaSetupArea');
+  if (!area) return;
+  area.textContent = 'Generating secret...';
+  const r = await API.mfaSetup(type);
+  if (!r.ok) { area.textContent = r.error || 'Failed to start MFA setup'; return; }
+  const lines = [];
+  lines.push('<div class="card" style="padding:16px;text-align:center">');
+  lines.push('<div style="font-size:13px;color:var(--t2);margin-bottom:10px">Scan this QR code with ' + esc(type === 'google' ? 'Google Authenticator' : 'Microsoft Authenticator') + ', then enter the 6-digit code below.</div>');
+  lines.push('<img src="' + esc(r.qr) + '" alt="QR code" style="max-width:220px;margin:0 auto;display:block;border:1px solid var(--border-0);border-radius:8px;background:#fff;padding:8px">');
+  lines.push('<div style="font-family:var(--mono);font-size:11px;color:var(--t3);margin-top:10px;word-break:break-all">Manual entry: ' + esc(r.secret) + '</div>');
+  lines.push('</div>');
+  lines.push('<div class="fg" style="margin-top:14px"><label class="fl">Verification Code</label><input class="fi" id="mfaVerifyCode" placeholder="123456" maxlength="6" inputmode="numeric"></div>');
+  lines.push('<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="completeMFASetup()">Verify and Enable</button></div>');
+  area.innerHTML = lines.join('');
+}
+
+async function completeMFASetup() {
+  const code = (document.querySelector('#mfaVerifyCode') || {}).value;
+  if (!code) { toast('Enter the 6-digit code', 'error'); return; }
+  const r = await API.mfaVerifySetup(code);
+  if (r.ok) { toast('MFA enabled'); closeModal(); }
+  else { toast(r.error || 'Verification failed', 'error'); }
+}
+
+async function startDuoEnroll() {
+  const area = document.querySelector('#mfaSetupArea');
+  if (!area) return;
+  const lines = [];
+  lines.push('<div class="card" style="padding:16px"><div style="font-size:13px;color:var(--t2);margin-bottom:10px">Enter the username your administrator registered with Duo. You will receive ' + '5 one-time bypass codes that you can use until your first push challenge.</div>');
+  lines.push('<div class="fg"><label class="fl">Duo Username</label><input class="fi" id="duoUser" placeholder="firstname.lastname"></div>');
+  lines.push('<button class="btn btn-primary" onclick="completeDuoEnroll()">Enroll</button>');
+  lines.push('<div id="duoBypassArea" style="margin-top:12px"></div></div>');
+  area.innerHTML = lines.join('');
+}
+
+async function completeDuoEnroll() {
+  const u = (document.querySelector('#duoUser') || {}).value;
+  if (!u) { toast('Duo username required', 'error'); return; }
+  const r = await API.mfaDuoEnroll(u);
+  if (!r.ok) { toast(r.error || 'Enrollment failed', 'error'); return; }
+  const area = document.querySelector('#duoBypassArea');
+  if (area) {
+    const lines = ['<div style="font-size:12px;color:var(--green);font-weight:600;margin-bottom:6px">Save these bypass codes — they will not be shown again:</div>'];
+    for (const c of (r.bypassCodes || [])) lines.push('<div class="cell-mono" style="font-size:14px">' + esc(c) + '</div>');
+    area.innerHTML = lines.join('');
+  }
+  toast('Duo MFA enrolled');
+}
+
+async function doDisableMFA() {
+  const p = (document.querySelector('#mfaDisablePass') || {}).value;
+  const r = await API.mfaDisable(p);
+  if (r.ok) { toast('MFA disabled'); closeModal(); loadUsersTable(); }
+  else { toast(r.error || 'Failed to disable MFA', 'error'); }
+}
+
+// ─── SSO configuration modal (admin) ───────────────────────────────────────
+async function modalSSOConfig() {
+  const r = await API.getSSOConfig();
+  const cfg = (r && r.data) || { ad: {}, entra: {}, saml: {} };
+  const ad = cfg.ad || {}, entra = cfg.entra || {}, saml = cfg.saml || {};
+  const body = '<p style="font-size:12px;color:var(--t3);margin-bottom:16px">Configure identity providers for SSO. Stored secrets are masked when displayed.</p>'
+    + '<div class="card" style="padding:14px;margin-bottom:12px"><div class="fl" style="margin-bottom:8px;color:var(--accent)">Active Directory / LDAP</div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">LDAP URL</label><input class="fi" id="ssoAdUrl" value="' + esc(ad.url || '') + '" placeholder="ldaps://dc.example.com:636"></div>'
+    + '<div class="fg"><label class="fl">User Principal Suffix</label><input class="fi" id="ssoAdSuffix" value="' + esc(ad.userPrincipalSuffix || '') + '" placeholder="@example.com"></div></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Bind DN (service account)</label><input class="fi" id="ssoAdBindDn" value="' + esc(ad.bindDn || '') + '" placeholder="CN=svc,OU=Service,DC=example,DC=com"></div>'
+    + '<div class="fg"><label class="fl">Bind Password</label><input class="fi" id="ssoAdBindPwd" type="password" value="' + esc(ad.bindPassword || '') + '" placeholder="(unchanged)"></div></div>'
+    + '<div class="fg"><label class="fl">User Search Base</label><input class="fi" id="ssoAdBase" value="' + esc(ad.searchBase || '') + '" placeholder="OU=Users,DC=example,DC=com"></div></div>'
+    + '<div class="card" style="padding:14px;margin-bottom:12px"><div class="fl" style="margin-bottom:8px;color:var(--accent)">Microsoft Entra ID (Azure AD)</div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Tenant ID</label><input class="fi" id="ssoEntraTenant" value="' + esc(entra.tenantId || '') + '" placeholder="00000000-0000-0000-0000-000000000000"></div>'
+    + '<div class="fg"><label class="fl">Client (App) ID</label><input class="fi" id="ssoEntraClient" value="' + esc(entra.clientId || '') + '"></div></div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">Client Secret</label><input class="fi" id="ssoEntraSecret" type="password" value="' + esc(entra.clientSecret || '') + '" placeholder="(unchanged)"></div>'
+    + '<div class="fg"><label class="fl">Redirect URI</label><input class="fi" id="ssoEntraRedirect" value="' + esc(entra.redirectUri || '') + '" placeholder="https://grc.example.com/sso/entra"></div></div></div>'
+    + '<div class="card" style="padding:14px;margin-bottom:12px"><div class="fl" style="margin-bottom:8px;color:var(--accent)">SAML 2.0</div>'
+    + '<div class="fr fr2"><div class="fg"><label class="fl">IdP Entry Point (SSO URL)</label><input class="fi" id="ssoSamlEntry" value="' + esc(saml.entryPoint || '') + '" placeholder="https://idp.example.com/sso"></div>'
+    + '<div class="fg"><label class="fl">SP Issuer / Entity ID</label><input class="fi" id="ssoSamlIssuer" value="' + esc(saml.issuer || '') + '" placeholder="grc-vault"></div></div>'
+    + '<div class="fg"><label class="fl">ACS Callback URL</label><input class="fi" id="ssoSamlCallback" value="' + esc(saml.callbackUrl || '') + '" placeholder="https://grc.example.com/api/auth/sso/saml/acs"></div>'
+    + '<div class="fg"><label class="fl">IdP X.509 Certificate (PEM)</label><textarea class="ft" id="ssoSamlCert" style="min-height:90px;font-family:var(--mono);font-size:11px" placeholder="-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----">' + esc(saml.idpCert || '') + '</textarea></div>'
+    + '<div style="font-size:11px;color:var(--t3)">SP metadata is published at <code>/api/auth/sso/saml/metadata</code> once configured.</div></div>';
+  modal('SSO Configuration', body, 'lg',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveSSOConfig()">Save Configuration</button>');
+}
+
+async function saveSSOConfig() {
+  const cfg = {
+    ad: {
+      url: document.querySelector('#ssoAdUrl').value.trim(),
+      userPrincipalSuffix: document.querySelector('#ssoAdSuffix').value.trim(),
+      bindDn: document.querySelector('#ssoAdBindDn').value.trim(),
+      bindPassword: document.querySelector('#ssoAdBindPwd').value,
+      searchBase: document.querySelector('#ssoAdBase').value.trim()
+    },
+    entra: {
+      tenantId: document.querySelector('#ssoEntraTenant').value.trim(),
+      clientId: document.querySelector('#ssoEntraClient').value.trim(),
+      clientSecret: document.querySelector('#ssoEntraSecret').value,
+      redirectUri: document.querySelector('#ssoEntraRedirect').value.trim()
+    },
+    saml: {
+      entryPoint: document.querySelector('#ssoSamlEntry').value.trim(),
+      issuer: document.querySelector('#ssoSamlIssuer').value.trim(),
+      callbackUrl: document.querySelector('#ssoSamlCallback').value.trim(),
+      idpCert: document.querySelector('#ssoSamlCert').value.trim()
+    }
+  };
+  const r = await API.saveSSOConfig(cfg);
+  if (r.ok) { toast('SSO configuration saved'); closeModal(); }
+  else { toast(r.error || 'Failed to save', 'error'); }
 }
 
 async function deleteUser(id) {
@@ -2216,14 +2388,23 @@ function showLoginScreen() {
     + '<p style="font-size:14px;color:var(--t3);margin-top:4px">Sign in to continue</p></div>'
     + '<div class="card" style="padding:28px">'
     + '<div class="fg" style="margin-bottom:16px"><label class="fl">Username</label><input class="fi" id="loginUser" placeholder="Username" autofocus></div>'
-    + '<div class="fg" style="margin-bottom:20px"><label class="fl">Password</label><input class="fi" id="loginPass" type="password" placeholder="Password"></div>'
+    + '<div class="fg" style="margin-bottom:16px"><label class="fl">Password</label><input class="fi" id="loginPass" type="password" placeholder="Password"></div>'
+    + '<div class="fg" id="loginMfaWrap" style="margin-bottom:20px;display:none"><label class="fl">MFA Code</label><input class="fi" id="loginMfa" placeholder="123456" maxlength="6" inputmode="numeric"></div>'
     + '<div id="loginError" style="font-size:12px;color:var(--red);margin-bottom:12px;display:none"></div>'
-    + '<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In</button></div></div>';
-  loginEl.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg-0);padding:24px';
+    + '<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In</button>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin:18px 0"><div style="flex:1;height:1px;background:var(--border-0)"></div><div style="font-size:11px;color:var(--t4);text-transform:uppercase;letter-spacing:1px">or SSO</div><div style="flex:1;height:1px;background:var(--border-0)"></div></div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="doAdLogin()">Sign in with Active Directory</button>'
+    + '<button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="doEntraLogin()">Sign in with Microsoft Entra ID</button>'
+    + '<button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="doSamlLogin()">Sign in with SAML SSO</button>'
+    + '</div></div></div>';
+  loginEl.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg-0);padding:24px';
   // Enter key handler
   setTimeout(function() {
     const passEl = document.querySelector('#loginPass');
     if (passEl) passEl.onkeydown = function(e) { if (e.key === 'Enter') doLogin(); };
+    const mfaEl = document.querySelector('#loginMfa');
+    if (mfaEl) mfaEl.onkeydown = function(e) { if (e.key === 'Enter') doLogin(); };
     const userEl = document.querySelector('#loginUser');
     if (userEl) userEl.onkeydown = function(e) { if (e.key === 'Enter') document.querySelector('#loginPass').focus(); };
   }, 50);
@@ -2232,10 +2413,12 @@ function showLoginScreen() {
 async function doLogin() {
   const username = document.querySelector('#loginUser').value.trim();
   const password = document.querySelector('#loginPass').value;
+  const mfaEl = document.querySelector('#loginMfa');
+  const mfaCode = mfaEl ? mfaEl.value.trim() : '';
   const errEl = document.querySelector('#loginError');
   if (!username || !password) { errEl.textContent = 'Enter username and password'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
-  const result = await API.login(username, password);
+  const result = await API.login(username, password, mfaCode);
   if (result.ok) {
     authToken = result.token;
     currentUser = result.user;
@@ -2245,10 +2428,61 @@ async function doLogin() {
     await loadData();
     renderSidebar();
     render();
+  } else if (result.mfaRequired) {
+    const wrap = document.querySelector('#loginMfaWrap');
+    if (wrap) wrap.style.display = '';
+    errEl.textContent = 'Enter the code from your authenticator app';
+    errEl.style.color = 'var(--accent)';
+    errEl.style.display = 'block';
+    if (mfaEl) mfaEl.focus();
   } else {
+    errEl.style.color = 'var(--red)';
     errEl.textContent = result.error || 'Login failed';
     errEl.style.display = 'block';
   }
+}
+
+async function doAdLogin() {
+  const username = (document.querySelector('#loginUser') || {}).value;
+  const password = (document.querySelector('#loginPass') || {}).value;
+  const errEl = document.querySelector('#loginError');
+  if (!username || !password) { errEl.textContent = 'Enter username and password to use AD login'; errEl.style.color='var(--red)'; errEl.style.display='block'; return; }
+  const result = await API.ssoAdLogin(username, password);
+  if (result.ok) {
+    authToken = result.token;
+    currentUser = result.user;
+    localStorage.setItem('grc_token', authToken);
+    document.querySelector('#loginScreen').style.display = 'none';
+    document.querySelector('#app').style.display = 'flex';
+    await loadData(); renderSidebar(); render();
+  } else {
+    errEl.style.color='var(--red)';
+    errEl.textContent = result.error || 'AD login failed';
+    errEl.style.display = 'block';
+  }
+}
+
+async function doEntraLogin() {
+  // Fetch SSO config to discover tenant + client + redirect URI, then bounce to
+  // Microsoft's authorize endpoint. The frontend handles the redirect-back via
+  // the hash fragment listener in init().
+  try {
+    const r = await fetch('/api/auth/sso/config', { headers: {} });
+    // Public path is admin-only — the user-facing config would normally be
+    // embedded in the page; for now we surface a friendly message.
+    const errEl = document.querySelector('#loginError');
+    errEl.style.color = 'var(--accent)';
+    errEl.textContent = 'Entra ID flow: ask your administrator to publish the redirect URI configured in SSO Configuration.';
+    errEl.style.display = 'block';
+  } catch (e) {
+    toast('Entra ID not configured', 'error');
+  }
+}
+
+function doSamlLogin() {
+  // Browser redirect — IdP will POST the SAMLResponse back to /api/auth/sso/saml/acs
+  // which redirects to /#token=... that init() picks up.
+  window.location.href = '/api/auth/sso/saml/login';
 }
 
 function logout() {
@@ -2269,6 +2503,15 @@ async function loadData() {
 }
 
 async function init() {
+  // Pick up SAML/SSO redirect token from URL fragment.
+  if (window.location.hash && window.location.hash.indexOf('token=') !== -1) {
+    const m = window.location.hash.match(/token=([^&]+)/);
+    if (m) {
+      authToken = decodeURIComponent(m[1]);
+      localStorage.setItem('grc_token', authToken);
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }
   if (authToken) {
     // Validate existing token
     try {
