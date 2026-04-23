@@ -20,6 +20,7 @@
     "passport": "^0.7.0",
     "passport-saml": "^3.2.4",
     "ldapjs": "^3.0.7",
-    "@azure/msal-node": "^2.6.0"
+    "@azure/msal-node": "^2.6.0",
+    "@anthropic-ai/sdk": "^0.30.1"
   }
 }

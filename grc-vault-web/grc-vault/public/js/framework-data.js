@@ -1371,7 +1371,124 @@ const FW = {
       ["500.22", "Transitional Periods"],
       ["500.23", "Severability"]
     ]
+  },
+
+  "NCUA Part 748": {
+    ref: "https://www.ncua.gov/regulation-supervision/manuals-guides/federal-credit-union-act/rules-and-regulations/part-748",
+    controls: [
+      // Part 748 Appendix A — Guidelines for Safeguarding Member Information
+      // II. Standards for Safeguarding Member Information — Objectives
+      ["II.B.1", "Ensure the security and confidentiality of member information"],
+      ["II.B.2", "Protect against any anticipated threats or hazards to the security or integrity of member information"],
+      ["II.B.3", "Protect against unauthorized access to or use of member information that could result in substantial harm or inconvenience to any member"],
+      ["II.B.4", "Ensure the proper disposal of member information and consumer information"],
+      // III.A. Involve the Board of Directors
+      ["III.A", "Board of Directors approves the credit union's written information security program and oversees its development, implementation, and maintenance, including assigning specific responsibility and reviewing reports from management"],
+      // III.B. Assess Risk
+      ["III.B.1", "Identify reasonably foreseeable internal and external threats that could result in unauthorized disclosure, misuse, alteration, or destruction of member information or member information systems"],
+      ["III.B.2", "Assess the likelihood and potential damage of identified threats, taking into consideration the sensitivity of member information"],
+      ["III.B.3", "Assess the sufficiency of policies, procedures, member information systems, and other arrangements in place to control the identified risks"],
+      // III.C.1 Design Program to Control Identified Risks
+      ["III.C.1.a", "Access controls on member information systems, including controls to authenticate and permit access only to authorized individuals and controls to prevent employees from providing member information to unauthorized individuals who may seek to obtain this information through fraudulent means"],
+      ["III.C.1.b", "Access restrictions at physical locations containing member information, such as buildings, computer facilities, and records storage facilities to permit access only to authorized individuals"],
+      ["III.C.1.c", "Encryption of electronic member information, including while in transit or in storage on networks or systems to which unauthorized individuals may gain access"],
+      ["III.C.1.d", "Procedures designed to ensure that member information system modifications are consistent with the credit union's information security program"],
+      ["III.C.1.e", "Dual control procedures, segregation of duties, and employee background checks for employees with responsibilities for or access to member information"],
+      ["III.C.1.f", "Monitoring systems and procedures to detect actual and attempted attacks on or intrusions into member information systems"],
+      ["III.C.1.g", "Response programs that specify actions to be taken when the credit union suspects or detects that unauthorized individuals have gained access to member information systems, including appropriate reports to regulatory and law enforcement agencies"],
+      ["III.C.1.h", "Measures to protect against destruction, loss, or damage of member information due to potential environmental hazards, such as fire and water damage or technological failures"],
+      // III.C.2–4 Train, Test, Dispose
+      ["III.C.2", "Train staff to implement the credit union's information security program"],
+      ["III.C.3", "Regularly test the key controls, systems, and procedures of the information security program. Frequency and nature of tests should be determined by the credit union's risk assessment. Tests should be conducted or reviewed by independent third parties or staff independent of those that develop or maintain the security programs"],
+      ["III.C.4", "Develop, implement, and maintain, as part of the information security program, appropriate measures to properly dispose of member information and consumer information"],
+      // III.D. Oversee Service Provider Arrangements
+      ["III.D.1", "Exercise appropriate due diligence in selecting service providers"],
+      ["III.D.2", "Require service providers by contract to implement appropriate measures designed to meet the objectives of these Guidelines"],
+      ["III.D.3", "Where indicated by the credit union's risk assessment, monitor service providers to confirm that they have satisfied their obligations under the contract"],
+      // III.E. Adjust the Program
+      ["III.E", "Monitor, evaluate, and adjust, as appropriate, the information security program in light of any relevant changes in technology, the sensitivity of member information, internal or external threats to information, and the credit union's own changing business arrangements"],
+      // III.F. Report to the Board
+      ["III.F", "Report to the board, or an appropriate committee thereof, at least annually, describing the overall status of the information security program and the credit union's compliance with these Guidelines, including material matters related to the program, risk assessment, risk management and control decisions, service provider arrangements, results of testing, security breaches or violations and management's responses, and recommendations for changes in the information security program"]
+    ]
+  },
+
+  "ISO 42001": {
+    ref: "https://www.iso.org/standard/81230.html",
+    controls: [
+      // ISO/IEC 42001:2023 Annex A — AI Management System Controls
+      // A.2 Policies related to AI
+      ["A.2.2", "AI policy — The organization shall document and approve an AI policy that sets out the organization's approach to developing, providing, or using AI systems"],
+      ["A.2.3", "Alignment with other organizational policies — The AI policy shall be aligned with other organizational policies (e.g., data protection, information security, quality, safety) and its interaction with them documented"],
+      ["A.2.4", "Review of the AI policy — The AI policy shall be reviewed at planned intervals or when significant changes occur to ensure its continuing suitability, adequacy, and effectiveness"],
+      // A.3 Internal organization
+      ["A.3.2", "AI roles and responsibilities — Roles and responsibilities for the AI management system shall be defined and allocated according to the organization's needs"],
+      ["A.3.3", "Reporting of concerns — Mechanisms shall be established for any person to report concerns about the organization's AI systems in a timely and appropriate manner"],
+      // A.4 Resources for AI systems
+      ["A.4.2", "Resource documentation — Documentation shall identify the resources needed for the AI management system and the AI system life cycle activities"],
+      ["A.4.3", "Data resources — The organization shall document the data resources (including origin, nature, and intended purpose) used for AI systems"],
+      ["A.4.4", "Tooling resources — The organization shall document tooling resources (development, operation, monitoring) used for AI systems"],
+      ["A.4.5", "System and computing resources — The organization shall document system and computing resources (hardware, networking, cloud) used for AI systems"],
+      ["A.4.6", "Human resources — The organization shall document the human resources and their competencies needed for the AI system life cycle activities"],
+      // A.5 Assessing impacts of AI systems
+      ["A.5.2", "AI system impact assessment process — The organization shall establish a process to assess the potential consequences of AI systems on individuals, groups, and society"],
+      ["A.5.3", "Documentation of AI system impact assessments — Results of impact assessments shall be documented, retained, and maintained"],
+      ["A.5.4", "Assessing AI system impact on individuals or groups of individuals — Impact assessments shall specifically consider effects on individuals and groups, including potential discriminatory outcomes, privacy impacts, and rights impacts"],
+      ["A.5.5", "Assessing societal impacts of AI systems — Impact assessments shall consider effects on society, including environmental, economic, and cultural dimensions"],
+      // A.6 AI system life cycle
+      ["A.6.1.2", "Objectives for responsible development of AI systems — The organization shall define and document objectives for the responsible development of AI systems"],
+      ["A.6.1.3", "Processes for responsible design and development of AI systems — Processes shall be defined for the responsible design and development of AI systems throughout the life cycle"],
+      ["A.6.2.2", "AI system requirements and specification — Requirements and specifications for AI systems shall be documented, including performance, robustness, explainability, and safety requirements"],
+      ["A.6.2.3", "Documentation of AI system design and development — Design and development activities, assumptions, and decisions shall be documented"],
+      ["A.6.2.4", "AI system verification and validation — Verification and validation measures shall be defined, performed, and documented to demonstrate the AI system meets its requirements"],
+      ["A.6.2.5", "AI system deployment — Deployment of AI systems shall follow a documented plan addressing readiness criteria, user information, operational environment, and rollback"],
+      ["A.6.2.6", "AI system operation and monitoring — Operational and monitoring elements shall be defined and implemented to ensure AI systems function as intended over time"],
+      ["A.6.2.7", "AI system technical documentation — Technical documentation shall be prepared and maintained to provide necessary information to interested parties about the AI system"],
+      ["A.6.2.8", "AI system event log — Events relevant to the AI system's operation shall be logged, retained, and analyzed"],
+      // A.7 Data for AI systems
+      ["A.7.2", "Data for development and enhancement of AI system — Data used for development, training, and enhancement of the AI system shall be defined, documented, and managed"],
+      ["A.7.3", "Acquisition of data — Processes for acquiring data shall ensure data is obtained from appropriate sources with proper authorization and legal basis"],
+      ["A.7.4", "Quality of data for AI systems — The organization shall define and maintain quality requirements for data used by AI systems (completeness, accuracy, representativeness)"],
+      ["A.7.5", "Data provenance — The provenance of data used by AI systems shall be recorded, including origin, collection method, and transformations applied"],
+      ["A.7.6", "Data preparation — Methods and criteria for preparing data for use in AI systems (cleansing, labeling, transformation) shall be defined and applied"],
+      // A.8 Information for interested parties of AI systems
+      ["A.8.2", "System documentation and information for users — System documentation shall include information that enables users to understand and use the AI system appropriately (purpose, capabilities, limitations, intended use)"],
+      ["A.8.3", "External reporting — Mechanisms shall be provided for external interested parties to report matters related to AI systems"],
+      ["A.8.4", "Communication of incidents — AI system incidents shall be communicated to relevant interested parties according to defined criteria and timelines"],
+      ["A.8.5", "Information for interested parties — Information shall be made available to interested parties about the AI systems' purposes, capabilities, and limitations"],
+      // A.9 Use of AI systems
+      ["A.9.2", "Processes for responsible use of AI systems — Processes shall be established for the responsible use of AI systems"],
+      ["A.9.3", "Objectives for responsible use of AI system — Objectives for the responsible use of AI systems shall be defined and documented"],
+      ["A.9.4", "Intended use of the AI system — The intended use of the AI system shall be defined, communicated, and controlled; deviations from intended use shall be assessed"],
+      // A.10 Third-party and customer relationships
+      ["A.10.2", "Allocating responsibilities — Responsibilities between the organization, its partners, suppliers, customers, and third parties shall be defined for the AI system life cycle"],
+      ["A.10.3", "Suppliers — Processes shall ensure that the organization's AI-related requirements are considered in the relationship with suppliers"],
+      ["A.10.4", "Customers — Processes shall ensure that customer AI-related expectations and requirements are identified, agreed, and addressed"]
+    ]
   }
+};
+
+// ─── Framework Version Metadata ──────────────────────────────────────────────
+// Version, publisher, and publication date are kept alongside each catalog so
+// every gap analysis records exactly which revision was used for evaluation.
+// When a framework is revised upstream, bump the version here (and update the
+// controls above) — stored analyses remain reproducible because they capture
+// the version string at the moment they were run.
+const FW_META = {
+  "NIST CSF":          { version: "1.1",                    publisher: "NIST",                                publishedDate: "2018-04-16" },
+  "NIST CSF 2.0":      { version: "2.0",                    publisher: "NIST",                                publishedDate: "2024-02-26" },
+  "ISO 27001":         { version: "2022",                   publisher: "ISO/IEC",                             publishedDate: "2022-10-25" },
+  "SOC 2":             { version: "TSC 2017 (2022 rev)",    publisher: "AICPA",                               publishedDate: "2022-12-15" },
+  "HIPAA":             { version: "Security Rule (2013)",   publisher: "HHS OCR",                             publishedDate: "2013-01-25" },
+  "PCI DSS v4.0":      { version: "4.0.1",                  publisher: "PCI Security Standards Council",      publishedDate: "2024-06-11" },
+  "GDPR":              { version: "2016/679",               publisher: "European Parliament and Council",     publishedDate: "2016-04-27" },
+  "CMMC":              { version: "2.0",                    publisher: "U.S. Department of Defense",          publishedDate: "2021-11-04" },
+  "NIST 800-53 Rev 5": { version: "Rev 5",                  publisher: "NIST",                                publishedDate: "2020-09-23" },
+  "TISAX":             { version: "6.0",                    publisher: "ENX Association (VDA)",               publishedDate: "2024-04-01" },
+  "HITRUST CSF":       { version: "11.2",                   publisher: "HITRUST Alliance",                    publishedDate: "2024-04-22" },
+  "CCPA":              { version: "as amended by CPRA",     publisher: "California Attorney General",         publishedDate: "2023-03-29" },
+  "NYDFS 500":         { version: "Amendment 2 (2023)",     publisher: "NY Department of Financial Services", publishedDate: "2023-11-01" },
+  "NCUA Part 748":     { version: "as amended 2024",        publisher: "National Credit Union Administration",publishedDate: "2024-01-01" },
+  "ISO 42001":         { version: "2023",                   publisher: "ISO/IEC",                             publishedDate: "2023-12-18" }
 };
 
 // ─── Required Governance Documents per Framework ─────────────────────────
@@ -1514,3 +1631,10 @@ const GOV_ITEMS = [
   {t:"Annual Compliance Attestation",type:"Record",fw:{"SOC 2":["CC1.1"],"PCI DSS v4.0":["Req 12.4"]},reqs:["Annual attestation signed by responsible executive","Covers all applicable compliance frameworks and requirements","Gaps or exceptions are noted with remediation plans","Attestation is distributed to relevant stakeholders","Supporting evidence is referenced and available for audit"]},
   {t:"Insurance Certificates (Cyber Liability)",type:"Record",fw:{"SOC 2":["CC9.1"],"ISO 27001":["A.15.1.1"]},reqs:["Cyber liability insurance policy is in force and current","Coverage limits are appropriate for organization size and risk","Policy is reviewed at least annually at renewal","Certificates of insurance are on file and accessible","Coverage scope includes breach response and regulatory fines"]},
 ];
+
+// Expose catalogs to Node (server-side gap analysis) without disturbing
+// browser <script> usage — the server-side policy gap analyzer iterates
+// FW directly and tags each stored result with FW_META[name].version.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { FW, FW_META, GOV_ITEMS };
+}

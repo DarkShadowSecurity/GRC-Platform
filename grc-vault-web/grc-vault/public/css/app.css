@@ -237,6 +237,8 @@ tbody tr:last-child td { border-bottom: none; }
 .modal-sm { max-width: 500px; }
 .modal-md { max-width: 640px; }
 .modal-lg { max-width: 860px; }
+.modal-xl { max-width: 1100px; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 .modal-head {
   display: flex; justify-content: space-between; align-items: center;
   padding: 22px 28px; border-bottom: 1px solid var(--border-0); flex-shrink: 0;

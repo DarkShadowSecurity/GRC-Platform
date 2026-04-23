@@ -53,6 +53,15 @@ const API = {
   async getSSOConfig()    { return _apiFetch('/api/auth/sso/config', { headers:_authHeadersNoBody() }); },
   async saveSSOConfig(c)  { return _apiFetch('/api/auth/sso/config', { method:'POST', headers:_authHeaders(), body:JSON.stringify(c) }); },
   async ssoAdLogin(u,p)   { return (await fetch('/api/auth/sso/ad/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) })).json(); },
+  // ── AI Providers & Gap Analysis ────────────────────────────────────────
+  async getAiConfig()        { return _apiFetch('/api/ai/config', { headers:_authHeadersNoBody() }); },
+  async saveAiConfig(c)      { return _apiFetch('/api/ai/config', { method:'PUT', headers:_authHeaders(), body:JSON.stringify(c) }); },
+  async testAiProvider(p)    { return _apiFetch('/api/ai/test', { method:'POST', headers:_authHeaders(), body:JSON.stringify({provider:p}) }); },
+  async runGapAnalysis(id,fw){ return _apiFetch('/api/analysis/policy-gap', { method:'POST', headers:_authHeaders(), body:JSON.stringify({policyId:id, framework:fw}) }); },
+  async listGaps(policyId)   { return _apiFetch('/api/gap-analyses' + (policyId ? '?policyId=' + encodeURIComponent(policyId) : ''), { headers:_authHeadersNoBody() }); },
+  async getGap(id)           { return _apiFetch('/api/gap-analyses/' + id, { headers:_authHeadersNoBody() }); },
+  async delGap(id)           { return _apiFetch('/api/gap-analyses/' + id, { method:'DELETE', headers:_authHeadersNoBody() }); },
+  async checkFrameworkUpdate(fw) { return _apiFetch('/api/analysis/framework-update', { method:'POST', headers:_authHeaders(), body:JSON.stringify({framework:fw}) }); },
 };
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -1143,6 +1152,46 @@ async function modalGovEvidence(title) {
     ctrlRefHtml += '<div style="font-size:11px;color:var(--t2);line-height:1.6">' + esc(part) + '</div>';
   }
 
+  // Past gap analyses for this policy — render a compact row per framework so
+  // the user can see coverage at a glance and re-run or view details.
+  let pastGaps = [];
+  try { const gr = await API.listGaps(pol._id); if (gr.ok) pastGaps = gr.data || []; } catch (e) {}
+  const latestByFw = {};
+  for (const g of pastGaps) {
+    if (!latestByFw[g.framework] || new Date(g.analyzedAt) > new Date(latestByFw[g.framework].analyzedAt)) latestByFw[g.framework] = g;
+  }
+  let reviewRows = '';
+  for (const fw of fws) {
+    const last = latestByFw[fw];
+    const meta = (typeof FW_META !== 'undefined' && FW_META[fw]) ? FW_META[fw] : null;
+    const verLbl = meta && meta.version ? ' <span style="color:var(--t4);font-size:10px">v' + esc(meta.version) + '</span>' : '';
+    let statusCell = '<span style="color:var(--t4);font-size:11px">Not analyzed</span>';
+    if (last) {
+      const s = last.summary || {};
+      const pct = typeof s.coveragePct === 'number' ? s.coveragePct : 0;
+      const pctColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+      const when = last.analyzedAt ? new Date(last.analyzedAt).toLocaleDateString() : '';
+      statusCell = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        + '<span style="font-weight:700;color:' + pctColor + ';font-size:13px">' + pct + '%</span>'
+        + '<span class="badge b-low" style="font-size:9px">' + (s.met||0) + ' met</span>'
+        + '<span class="badge b-medium" style="font-size:9px">' + (s.partial||0) + ' partial</span>'
+        + '<span class="badge b-critical" style="font-size:9px">' + (s.gap||0) + ' gap</span>'
+        + (s.not_applicable ? '<span class="badge b-neutral" style="font-size:9px">' + s.not_applicable + ' n/a</span>' : '')
+        + '<span style="color:var(--t4);font-size:10px">' + esc(when) + '</span>'
+        + '<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:11px" onclick="modalGapAnalysisResults(\'' + last._id + '\')">View</button>'
+        + '</div>';
+    }
+    reviewRows += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border-0)">'
+      + '<div style="flex:0 0 auto;min-width:160px"><strong style="font-size:12px">' + esc(fw) + '</strong>' + verLbl + '</div>'
+      + '<div style="flex:1">' + statusCell + '</div>'
+      + '<button class="btn btn-primary btn-sm" style="flex:0 0 auto" onclick="startGapAnalysis(\'' + pol._id + '\',\'' + esc(fw).replace(/'/g,"\\'") + '\')">Analyze Gaps</button>'
+      + '</div>';
+  }
+  const reviewCard = fws.length ? ('<div class="card" style="padding:0;margin-bottom:16px;overflow:hidden">'
+    + '<div class="card-head" style="padding:10px 14px"><h3 style="margin:0;font-size:13px">Compliance Review</h3><span style="font-size:10px;color:var(--t4)">AI-assisted gap analysis against each selected framework</span></div>'
+    + reviewRows
+    + '</div>') : '';
+
   let reqRows = '';
   for (let i = 0; i < pol.reqs.length; i++) {
     const r = pol.reqs[i];
@@ -1165,6 +1214,7 @@ async function modalGovEvidence(title) {
 
   modal(esc(item.t),
     '<div style="margin-bottom:14px">' + fwBadges + '</div>'
+    + reviewCard
     + (ctrlRefHtml ? '<div class="card" style="padding:12px;background:var(--bg-input);margin-bottom:16px"><div class="fl" style="margin-bottom:4px">Required By Controls</div>' + ctrlRefHtml + '</div>' : '')
     + '<div class="fl" style="margin-bottom:10px">Requirements \u2014 provide evidence for each</div>'
     + reqRows,
@@ -1223,6 +1273,158 @@ async function uploadGovEvidence(polId, reqIdx) {
 }
 
 async function delPol(id) { await API.del('policies',id); S.policies=S.policies.filter(p=>p._id!==id); render(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POLICY GAP ANALYSIS (AI-assisted, per-framework)
+// ═══════════════════════════════════════════════════════════════════════════
+// startGapAnalysis runs one framework at a time (the server parallelizes
+// per-control calls). We show a simple progress modal while waiting; on
+// completion we open the results modal so the user immediately sees gaps.
+
+async function startGapAnalysis(policyId, framework) {
+  const ctrlCount = (typeof FW !== 'undefined' && FW[framework] && FW[framework].controls) ? FW[framework].controls.length : null;
+  const meta = (typeof FW_META !== 'undefined' && FW_META[framework]) ? FW_META[framework] : null;
+  const verLbl = meta && meta.version ? ' <span style="color:var(--t4)">v' + esc(meta.version) + '</span>' : '';
+  const ctrlNote = ctrlCount ? (' — ' + ctrlCount + ' controls') : '';
+  modal('Analyzing gaps',
+    '<div style="text-align:center;padding:20px">'
+    + '<div style="font-size:13px;margin-bottom:12px">Evaluating policy against <strong>' + esc(framework) + '</strong>' + verLbl + ctrlNote + '</div>'
+    + '<div class="pbar" style="height:6px;margin:14px 0"><div class="pfill" style="width:100%;background:var(--accent);animation:pulse 1.4s ease-in-out infinite"></div></div>'
+    + '<p style="font-size:11px;color:var(--t3);line-height:1.6">The analyzer is checking each control one at a time and returning structured findings. This typically takes 30–90 seconds depending on framework size and provider latency.</p>'
+    + '<p style="font-size:11px;color:var(--t4);margin-top:10px">Do not close this window.</p>'
+    + '</div>',
+    'md');
+  const r = await API.runGapAnalysis(policyId, framework);
+  if (!r.ok) {
+    closeModal();
+    toast('Gap analysis failed: ' + (r.error||'unknown'), 'error');
+    return;
+  }
+  closeModal();
+  modalGapAnalysisResults(r.data._id, r.data);
+}
+
+// Results modal — filters by status and shows per-control evidence/gap/remediation.
+let _gapFilter = 'all';
+let _gapData = null;
+
+async function modalGapAnalysisResults(analysisId, preloaded) {
+  _gapFilter = 'all';
+  let data = preloaded;
+  if (!data) {
+    const r = await API.getGap(analysisId);
+    if (!r.ok) { toast('Could not load analysis: ' + (r.error||''), 'error'); return; }
+    data = r.data;
+  }
+  _gapData = data;
+  _renderGapResultsModal();
+}
+
+function _renderGapResultsModal() {
+  const data = _gapData; if (!data) return;
+  const s = data.summary || {};
+  const pct = typeof s.coveragePct === 'number' ? s.coveragePct : 0;
+  const pctColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+  const when = data.analyzedAt ? new Date(data.analyzedAt).toLocaleString() : '';
+  const header =
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-0)">'
+    + '<div style="flex:1;min-width:220px">'
+    +   '<div style="font-size:11px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px">' + esc(data.policyType || 'Policy') + '</div>'
+    +   '<div style="font-size:14px;font-weight:700">' + esc(data.policyTitle || '') + '</div>'
+    +   '<div style="font-size:11px;color:var(--t3);margin-top:2px">vs <strong>' + esc(data.framework||'') + '</strong>'
+    +     (data.frameworkVersion ? ' <span style="color:var(--t4)">v' + esc(data.frameworkVersion) + '</span>' : '')
+    +     (data.frameworkPublisher ? ' · ' + esc(data.frameworkPublisher) : '')
+    +   '</div>'
+    + '</div>'
+    + '<div style="text-align:right">'
+    +   '<div style="font-size:28px;font-weight:800;color:' + pctColor + ';line-height:1">' + pct + '%</div>'
+    +   '<div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px">Coverage</div>'
+    + '</div>'
+    + '</div>';
+  const counts =
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+    + _gapPill('all',            'All',          data.controlsAnalyzed || (data.results||[]).length)
+    + _gapPill('met',            'Met',          s.met || 0,             'b-low')
+    + _gapPill('partial',        'Partial',      s.partial || 0,         'b-medium')
+    + _gapPill('gap',            'Gaps',         s.gap || 0,             'b-critical')
+    + _gapPill('not_applicable', 'N/A',          s.not_applicable || 0,  'b-neutral')
+    + '</div>';
+  const results = (data.results || []).filter(r => _gapFilter === 'all' || r.status === _gapFilter);
+  const cardsHtml = results.length ? results.map(_gapResultCard).join('') : '<p style="color:var(--t4);font-size:12px;padding:20px;text-align:center">No controls match the current filter.</p>';
+  const meta =
+    '<div style="font-size:10px;color:var(--t4);margin-top:14px;padding-top:10px;border-top:1px solid var(--border-0);line-height:1.6">'
+    + 'Analyzed ' + esc(when) + ' by ' + esc(data.analyzedBy||'system')
+    + ' · ' + esc(data.provider||'') + '/' + esc(data.model||'')
+    + ' · ' + (data.controlsAnalyzed||0) + ' controls'
+    + (typeof s.avgConfidence === 'number' ? ' · avg confidence ' + s.avgConfidence : '')
+    + '</div>';
+  const footer =
+    '<button class="btn btn-secondary" onclick="exportGapAnalysis(\'' + data._id + '\')">Export JSON</button>'
+    + '<button class="btn btn-danger" onclick="deleteGapAnalysis(\'' + data._id + '\')">Delete</button>'
+    + '<button class="btn btn-primary" onclick="closeModal()">Close</button>';
+  modal('Gap Analysis', header + counts + '<div>' + cardsHtml + '</div>' + meta, 'xl', footer);
+}
+
+function _gapPill(id, label, count, badgeCls) {
+  const on = _gapFilter === id ? ' on' : '';
+  const badge = badgeCls ? ('<span class="badge ' + badgeCls + '" style="margin-left:6px;font-size:9px">' + count + '</span>') : (' (' + count + ')');
+  return '<button class="pill' + on + '" onclick="setGapFilter(\'' + id + '\')">' + esc(label) + badge + '</button>';
+}
+
+function setGapFilter(f) { _gapFilter = f; closeModal(); _renderGapResultsModal(); }
+
+function _gapResultCard(r) {
+  const statusMap = {
+    met:            { label:'Met',           color:'var(--green)',  bg:'var(--green-bg)',  cls:'b-low' },
+    partial:        { label:'Partial',       color:'var(--yellow)', bg:'var(--yellow-bg)', cls:'b-medium' },
+    gap:            { label:'Gap',           color:'var(--red)',    bg:'var(--red-bg)',    cls:'b-critical' },
+    not_applicable: { label:'N/A',           color:'var(--t3)',     bg:'var(--bg-input)',  cls:'b-neutral' }
+  };
+  const m = statusMap[r.status] || statusMap.gap;
+  const conf = typeof r.confidence === 'number' ? Math.round(r.confidence * 100) + '% conf' : '';
+  const effortLbl = r.remediation_effort && r.remediation_effort !== 'none' ? r.remediation_effort + ' effort' : '';
+  const verifyNote = r.verification_note ? '<div style="font-size:10px;color:var(--orange);margin-top:4px"><em>' + esc(r.verification_note) + '</em></div>' : '';
+  const errNote = r.error ? '<div style="font-size:10px;color:var(--red);margin-top:4px"><em>Analyzer error: ' + esc(r.error) + '</em></div>' : '';
+  const quotes = (r.evidence_quotes && r.evidence_quotes.length)
+    ? '<div style="margin-top:8px"><div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Evidence from policy</div>'
+      + r.evidence_quotes.map(q => '<div style="font-size:12px;border-left:3px solid var(--green);padding:6px 10px;background:var(--green-bg);margin-bottom:4px;font-style:italic">"' + esc(q) + '"</div>').join('')
+      + '</div>'
+    : '';
+  const gap = r.gap_description
+    ? '<div style="margin-top:8px"><div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Gap</div><div style="font-size:12px;line-height:1.6">' + esc(r.gap_description) + '</div></div>'
+    : '';
+  const rem = r.remediation
+    ? '<div style="margin-top:8px"><div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Recommended remediation</div><div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg-input);border-radius:var(--radius)">' + esc(r.remediation) + '</div></div>'
+    : '';
+  return '<div class="card" style="padding:14px;margin-bottom:10px;border-left:4px solid ' + m.color + '">'
+    + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:start">'
+    + '<div style="flex:1"><div style="font-size:11px;color:var(--t4);font-family:var(--mono)">' + esc(r.controlId||'') + '</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + esc(r.controlText||'') + '</div></div>'
+    + '<div style="display:flex;flex-direction:column;align-items:end;gap:4px">'
+    +   '<span class="badge ' + m.cls + '">' + m.label + '</span>'
+    +   (conf ? '<span style="font-size:10px;color:var(--t4)">' + conf + '</span>' : '')
+    +   (effortLbl ? '<span style="font-size:10px;color:var(--t4)">' + effortLbl + '</span>' : '')
+    + '</div>'
+    + '</div>'
+    + verifyNote + errNote + quotes + gap + rem
+    + '</div>';
+}
+
+async function exportGapAnalysis(id) {
+  const r = await API.getGap(id);
+  if (!r.ok) { toast('Export failed: ' + (r.error||''), 'error'); return; }
+  const blob = new Blob([JSON.stringify(r.data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gap-analysis-' + (r.data.framework||'fw').replace(/\s+/g,'_') + '-' + id.slice(0,8) + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function deleteGapAnalysis(id) {
+  if (!confirm('Delete this gap analysis? This cannot be undone.')) return;
+  const r = await API.delGap(id);
+  if (r.ok) { closeModal(); toast('Analysis deleted'); }
+  else toast('Delete failed: ' + (r.error||''), 'error');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NIST CSF 2.0 ASSESSMENT
@@ -1883,35 +2085,219 @@ function pgReports() {
   const tabs = ['Executive Summary'].concat(displayFws.map(fw => fw + ' Report')).concat(['Risk Register', 'Audit Findings']);
   if (!tabs.includes(rptTab)) rptTab = 'Executive Summary';
 
-  const timestamp = '<div style="font-size:11px;color:var(--t4);margin-bottom:24px">Generated ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}) + ' at ' + new Date().toLocaleTimeString() + '</div>';
+  const timestamp = '<div style="font-size:11px;color:var(--t4);margin-bottom:20px">Generated ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}) + ' at ' + new Date().toLocaleTimeString() + '</div>';
+
+  // ─── chart helpers ───
+  function _donut(pct, color, label) {
+    const p = Math.max(0, Math.min(100, pct));
+    const circ = Math.round(p * 3.77);
+    return '<div style="display:flex;flex-direction:column;align-items:center">'
+      + '<div style="position:relative;width:120px;height:120px">'
+      + '<svg viewBox="0 0 150 150" style="width:120px;height:120px"><circle cx="75" cy="75" r="62" fill="none" stroke="var(--border-0)" stroke-width="12"/><circle cx="75" cy="75" r="62" fill="none" stroke="' + color + '" stroke-width="12" stroke-dasharray="' + circ + ' 390" stroke-linecap="round" transform="rotate(-90 75 75)"/></svg>'
+      + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;color:' + color + '">' + p + '%</div>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--t3);margin-top:8px;font-weight:600;text-align:center;text-transform:uppercase;letter-spacing:0.4px">' + label + '</div>'
+      + '</div>';
+  }
+  function _vbars(data) {
+    const mx = Math.max.apply(null, data.map(function(d) { return d.value; }).concat([1]));
+    return '<div style="display:flex;gap:10px;align-items:flex-end;height:140px">' + data.map(function(d) {
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">'
+        + '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:' + d.color + '">' + d.value + '</div>'
+        + '<div style="width:100%;border-radius:6px 6px 0 0;background:' + d.color + ';height:' + Math.max(d.value / mx * 100, 6) + '%;min-height:4px;transition:height 0.5s"></div>'
+        + '<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.3px">' + d.label + '</div>'
+        + '</div>';
+    }).join('') + '</div>';
+  }
+  function _hbar(label, pct, color, right) {
+    const p = Math.max(0, Math.min(100, pct));
+    return '<div style="margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px"><span style="font-weight:600;color:var(--t2)">' + esc(label) + '</span><span style="color:var(--t3);font-family:var(--mono);font-size:11px">' + esc(right) + '</span></div>'
+      + '<div style="height:10px;background:var(--bg-3);border-radius:5px;overflow:hidden"><div style="height:100%;width:' + p + '%;background:' + color + ';border-radius:5px;transition:width 0.5s"></div></div>'
+      + '</div>';
+  }
+  function _stacked(segments) {
+    const total = segments.reduce(function(s, x) { return s + x.value; }, 0) || 1;
+    let out = '<div style="height:14px;background:var(--bg-3);border-radius:7px;overflow:hidden;display:flex">';
+    segments.forEach(function(s) {
+      if (s.value > 0) {
+        const w = (s.value / total) * 100;
+        out += '<div title="' + esc(s.label) + ': ' + s.value + '" style="height:100%;width:' + w + '%;background:' + s.color + '"></div>';
+      }
+    });
+    out += '</div>';
+    out += '<div style="display:flex;gap:16px;margin-top:10px;font-size:11px;flex-wrap:wrap">'
+      + segments.map(function(s) { return '<span style="display:inline-flex;align-items:center;gap:6px;color:var(--t3)"><span style="width:10px;height:10px;border-radius:2px;background:' + s.color + '"></span>' + esc(s.label) + ' <b style="color:var(--t1);font-family:var(--mono)">' + s.value + '</b></span>'; }).join('')
+      + '</div>';
+    return out;
+  }
+  function _heat(risks) {
+    const hm = {};
+    for (let l = 1; l <= 5; l++) for (let i = 1; i <= 5; i++) hm[l + 'x' + i] = 0;
+    risks.forEach(function(r) { const k = (r.likelihood || 1) + 'x' + (r.impact || 1); if (hm[k] !== undefined) hm[k]++; });
+    let out = '<div style="display:grid;grid-template-columns:20px repeat(5,1fr);gap:3px">'
+      + '<div></div>' + [1,2,3,4,5].map(function(i) { return '<div style="font-size:9px;color:var(--t4);text-align:center;font-weight:600">' + i + '</div>'; }).join('');
+    for (const l of [5,4,3,2,1]) {
+      out += '<div style="font-size:9px;color:var(--t4);display:flex;align-items:center;justify-content:center;font-weight:600">' + l + '</div>';
+      for (const i of [1,2,3,4,5]) {
+        const s = l * i; const cnt = hm[l + 'x' + i]; const hc = heatColor(s);
+        out += '<div style="aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;background:' + (cnt > 0 ? hc.bg : 'var(--bg-3)') + ';color:' + (cnt > 0 ? hc.fg : 'var(--t4)') + ';min-height:32px">' + (cnt || '') + '</div>';
+      }
+    }
+    out += '</div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:9px;color:var(--t4);text-transform:uppercase;letter-spacing:0.5px;padding:0 0 0 22px"><span>Impact →</span><span>↑ Likelihood</span></div>';
+    return out;
+  }
 
   let body = '';
+
   if (rptTab === 'Executive Summary') {
-    const cp = S.controls.length ? Math.round(S.controls.filter(c => c.status === 'Implemented').length / S.controls.length * 100) : 0;
-    const cr = S.risks.filter(r => riskLevel(r.residualScore || 0).level === 'Critical');
-    const ar = S.risks.length ? (S.risks.reduce((s, r) => s + (r.residualScore || 0), 0) / S.risks.length).toFixed(1) : 'N/A';
-    const of_ = S.findings.filter(f => f.status === 'Open');
-    body = '<div class="man-sec"><h4>Risk Posture</h4><p>' + S.risks.length + ' identified risks \u2014 ' + cr.length + ' critical, average residual: ' + ar + '</p></div>'
-      + '<div class="man-sec"><h4>Compliance</h4><p>' + cp + '% implementation across ' + S.controls.length + ' controls. ' + S.controls.filter(c => c.status === 'Not Started').length + ' not started.</p></div>'
-      + '<div class="man-sec"><h4>Audits</h4><p>' + S.audits.length + ' total. ' + S.audits.filter(a => a.status === 'In Progress').length + ' in progress. ' + of_.length + ' open findings.</p></div>'
-      + '<div class="man-sec"><h4>Governance</h4><p>' + S.policies.length + ' artifacts tracked. ' + S.policies.filter(p => p.reqs && p.reqs.some(r => r.met)).length + ' with evidence.</p></div>';
-    // Per-framework summary
+    const totalC = S.controls.length;
+    const ic = S.controls.filter(c => c.status === 'Implemented').length;
+    const pic = S.controls.filter(c => c.status === 'Partially Implemented').length;
+    const ns = S.controls.filter(c => c.status === 'Not Started').length;
+    const covAdj = totalC ? Math.round((ic + pic * 0.5) / totalC * 100) : 0;
+
+    const levels = {Critical:0, High:0, Medium:0, Low:0};
+    S.risks.forEach(function(r) { levels[riskLevel(r.residualScore || 0).level]++; });
+    const avgR = S.risks.length ? S.risks.reduce((s, r) => s + (r.residualScore || 0), 0) / S.risks.length : 0;
+    const rposture = S.risks.length ? Math.round((1 - avgR / 25) * 100) : 100;
+    const rColor = avgR >= 12 ? 'var(--red)' : avgR >= 6 ? 'var(--orange)' : 'var(--green)';
+
+    const audStatus = {Planning:0, 'In Progress':0, Review:0, Completed:0};
+    S.audits.forEach(function(a) { if (audStatus[a.status] !== undefined) audStatus[a.status]++; });
+    const audPct = S.audits.length ? Math.round(audStatus.Completed / S.audits.length * 100) : 0;
+
+    const findSev = {Critical:0, High:0, Medium:0, Low:0};
+    const openFindings = S.findings.filter(f => f.status === 'Open');
+    openFindings.forEach(function(f) { if (findSev[f.severity] !== undefined) findSev[f.severity]++; });
+
+    const polApproved = S.policies.filter(p => p.status === 'Approved').length;
+    const polDraft = S.policies.filter(p => p.status === 'Draft' || p.status === 'Review').length;
+    const polTotal = S.policies.length;
+    const polPct = polTotal ? Math.round(polApproved / polTotal * 100) : 0;
+
+    body += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(covAdj, 'var(--green)', 'Compliance Coverage') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + ic + ' impl · ' + pic + ' partial · ' + ns + ' not started</div></div>'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(rposture, rColor, 'Risk Posture') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + S.risks.length + ' risks · avg residual ' + avgR.toFixed(1) + '</div></div>'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(audPct, 'var(--blue)', 'Audit Completion') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + audStatus.Completed + ' done · ' + audStatus['In Progress'] + ' active</div></div>'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(polPct, 'var(--cyan)', 'Policy Approval') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + polApproved + ' approved · ' + polDraft + ' in review</div></div>'
+      + '</div>';
+
+    body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Risk Distribution by Severity</h3><span style="font-size:11px;color:var(--t4)">' + S.risks.length + ' risks</span></div>'
+      + _vbars([{label:'Critical',value:levels.Critical,color:'var(--red)'},{label:'High',value:levels.High,color:'var(--orange)'},{label:'Medium',value:levels.Medium,color:'var(--yellow)'},{label:'Low',value:levels.Low,color:'var(--green)'}])
+      + '</div>'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Open Findings by Severity</h3><span style="font-size:11px;color:var(--t4)">' + openFindings.length + ' open</span></div>'
+      + _vbars([{label:'Critical',value:findSev.Critical,color:'var(--red)'},{label:'High',value:findSev.High,color:'var(--orange)'},{label:'Medium',value:findSev.Medium,color:'var(--yellow)'},{label:'Low',value:findSev.Low,color:'var(--green)'}])
+      + '</div></div>';
+
     if (displayFws.length > 0) {
-      body += '<div class="man-sec"><h4>Framework Coverage</h4>';
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Compliance Coverage by Framework</h3><span style="font-size:11px;color:var(--t4)">' + displayFws.length + ' framework(s)</span></div>';
       for (const fw of displayFws) {
         const fwc = S.controls.filter(c => c.framework === fw);
-        const impl = fwc.filter(c => c.status === 'Implemented').length;
-        const pct = fwc.length ? Math.round(impl / fwc.length * 100) : 0;
-        body += '<p style="margin-bottom:4px"><strong>' + esc(fw) + ':</strong> ' + impl + '/' + fwc.length + ' controls (' + pct + '%)</p>';
+        const fwi = fwc.filter(c => c.status === 'Implemented').length;
+        const fwp = fwc.filter(c => c.status === 'Partially Implemented').length;
+        const pct = fwc.length ? Math.round((fwi + fwp * 0.5) / fwc.length * 100) : 0;
+        const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : pct >= 25 ? 'var(--orange)' : 'var(--red)';
+        body += _hbar(fw, pct, color, fwi + '/' + fwc.length + ' impl · ' + pct + '%');
       }
       body += '</div>';
     }
-  } else if (rptTab === 'Risk Register') {
-    body = S.risks.length === 0 ? '<div class="empty"><p>No risks</p></div>' : S.risks.map(function(r) { const rl = riskLevel(r.residualScore || 0); return '<div class="man-sec"><h4>' + esc(r.name) + ' <span class="badge ' + rl.cls + '" style="font-size:10px;vertical-align:middle">' + rl.level + '</span></h4><p>Category: ' + r.category + ' \u00b7 Owner: ' + esc(r.owner || '\u2014') + ' \u00b7 Raw: ' + r.rawScore + ' \u00b7 Residual: ' + r.residualScore + ' \u00b7 Treatment: ' + r.treatment + '</p></div>'; }).join('');
-  } else if (rptTab === 'Audit Findings') {
-    body = S.findings.length === 0 ? '<div class="empty"><p>No findings</p></div>' : S.findings.map(function(f) { const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low'; return '<div class="man-sec"><h4>' + esc(f.title) + ' <span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span></h4><p>' + esc(f.description) + (f.recommendation ? '<br>Recommendation: ' + esc(f.recommendation) : '') + '</p></div>'; }).join('');
-  } else {
-    // Framework-specific report
+
+    body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Audit Status Breakdown</h3><span style="font-size:11px;color:var(--t4)">' + S.audits.length + ' audits</span></div>'
+      + _vbars([{label:'Planning',value:audStatus.Planning,color:'var(--t3)'},{label:'In Progress',value:audStatus['In Progress'],color:'var(--blue)'},{label:'Review',value:audStatus.Review,color:'var(--purple)'},{label:'Completed',value:audStatus.Completed,color:'var(--green)'}])
+      + '</div>'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Risk Heat Map</h3><span style="font-size:9px;color:var(--t4)">Likelihood × Impact</span></div>'
+      + _heat(S.risks) + '</div></div>';
+  }
+
+  else if (rptTab === 'Risk Register') {
+    if (S.risks.length === 0) {
+      body = '<div class="empty"><p>No risks</p></div>';
+    } else {
+      const levels = {Critical:0, High:0, Medium:0, Low:0};
+      S.risks.forEach(function(r) { levels[riskLevel(r.residualScore || 0).level]++; });
+      const treat = {Mitigate:0, Accept:0, Transfer:0, Avoid:0};
+      S.risks.forEach(function(r) { if (treat[r.treatment] !== undefined) treat[r.treatment]++; });
+
+      body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Risk Distribution</h3><span style="font-size:11px;color:var(--t4)">' + S.risks.length + ' total</span></div>'
+        + _vbars([{label:'Critical',value:levels.Critical,color:'var(--red)'},{label:'High',value:levels.High,color:'var(--orange)'},{label:'Medium',value:levels.Medium,color:'var(--yellow)'},{label:'Low',value:levels.Low,color:'var(--green)'}])
+        + '</div>'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Treatment Strategy</h3></div>'
+        + _vbars([{label:'Mitigate',value:treat.Mitigate,color:'var(--blue)'},{label:'Accept',value:treat.Accept,color:'var(--yellow)'},{label:'Transfer',value:treat.Transfer,color:'var(--purple)'},{label:'Avoid',value:treat.Avoid,color:'var(--green)'}])
+        + '</div></div>';
+
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Risk Heat Map</h3><span style="font-size:9px;color:var(--t4)">Likelihood × Impact</span></div>' + _heat(S.risks) + '</div>';
+
+      const top = S.risks.slice().sort(function(a, b) { return (b.residualScore || 0) - (a.residualScore || 0); }).slice(0, 10);
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Top Risks by Residual Score</h3><span style="font-size:11px;color:var(--t4)">top ' + top.length + '</span></div>';
+      for (const r of top) {
+        const rl = riskLevel(r.residualScore || 0);
+        body += _hbar(r.name, (r.residualScore || 0) / 25 * 100, rl.color, (r.residualScore || 0) + ' / 25 · ' + rl.level);
+      }
+      body += '</div>';
+
+      body += '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Risk Register Detail</h3></div>'
+        + S.risks.map(function(r) { const rl = riskLevel(r.residualScore || 0); return '<div class="man-sec"><h4>' + esc(r.name) + ' <span class="badge ' + rl.cls + '" style="font-size:10px;vertical-align:middle">' + rl.level + '</span></h4><p>Category: ' + esc(r.category) + ' · Owner: ' + esc(r.owner || '—') + ' · Raw: ' + r.rawScore + ' · Residual: ' + r.residualScore + ' · Treatment: ' + esc(r.treatment) + '</p></div>'; }).join('')
+        + '</div>';
+    }
+  }
+
+  else if (rptTab === 'Audit Findings') {
+    if (S.findings.length === 0) {
+      body = '<div class="empty"><p>No findings</p></div>';
+    } else {
+      const sev = {Critical:0, High:0, Medium:0, Low:0};
+      const sevOpen = {Critical:0, High:0, Medium:0, Low:0};
+      S.findings.forEach(function(f) {
+        if (sev[f.severity] !== undefined) sev[f.severity]++;
+        if (f.status === 'Open' && sevOpen[f.severity] !== undefined) sevOpen[f.severity]++;
+      });
+      const open = S.findings.filter(f => f.status === 'Open').length;
+      const closed = S.findings.filter(f => f.status === 'Closed').length;
+      const total = S.findings.length;
+      const remRate = total ? Math.round(closed / total * 100) : 0;
+
+      const fwFind = {};
+      for (const f of S.findings) {
+        const a = S.audits.find(x => x._id === f.auditId);
+        const fw = a ? a.framework : 'Unassigned';
+        fwFind[fw] = (fwFind[fw] || 0) + 1;
+      }
+
+      body += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">'
+        + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center">' + _donut(remRate, 'var(--green)', 'Remediation Rate') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + closed + ' closed of ' + total + '</div></div>'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>All Findings by Severity</h3><span style="font-size:11px;color:var(--t4)">' + total + ' total</span></div>'
+        + _vbars([{label:'Critical',value:sev.Critical,color:'var(--red)'},{label:'High',value:sev.High,color:'var(--orange)'},{label:'Medium',value:sev.Medium,color:'var(--yellow)'},{label:'Low',value:sev.Low,color:'var(--green)'}])
+        + '</div>'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Open Findings by Severity</h3><span style="font-size:11px;color:var(--t4)">' + open + ' open</span></div>'
+        + _vbars([{label:'Critical',value:sevOpen.Critical,color:'var(--red)'},{label:'High',value:sevOpen.High,color:'var(--orange)'},{label:'Medium',value:sevOpen.Medium,color:'var(--yellow)'},{label:'Low',value:sevOpen.Low,color:'var(--green)'}])
+        + '</div></div>';
+
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Finding Status</h3></div>'
+        + _stacked([{label:'Open',value:open,color:'var(--red)'},{label:'Closed',value:closed,color:'var(--green)'}])
+        + '</div>';
+
+      const fwKeys = Object.keys(fwFind).sort(function(a, b) { return fwFind[b] - fwFind[a]; });
+      if (fwKeys.length > 0) {
+        const mx = Math.max.apply(null, fwKeys.map(function(k) { return fwFind[k]; }));
+        body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Findings by Framework</h3></div>';
+        for (const fw of fwKeys) {
+          body += _hbar(fw, fwFind[fw] / mx * 100, 'var(--orange)', String(fwFind[fw]));
+        }
+        body += '</div>';
+      }
+
+      body += '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Findings Detail</h3></div>'
+        + S.findings.map(function(f) { const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low'; return '<div class="man-sec"><h4>' + esc(f.title) + ' <span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span></h4><p>' + esc(f.description || '') + (f.recommendation ? '<br>Recommendation: ' + esc(f.recommendation) : '') + '</p></div>'; }).join('')
+        + '</div>';
+    }
+  }
+
+  else {
     const fw = rptTab.replace(' Report', '');
     const fwControls = S.controls.filter(c => c.framework === fw);
     const impl = fwControls.filter(c => c.status === 'Implemented').length;
@@ -1926,41 +2312,67 @@ function pgReports() {
     const fwGovDone = fwGov.filter(g => { const p = S.policies.find(x => x.title === g.t); return p && p.reqs && p.reqs.filter(r => r.met).length === (g.reqs || []).length; }).length;
     const fwRef = FW[fw] ? FW[fw].ref : '';
 
-    body = '<div class="man-sec"><h4>Compliance Coverage</h4>'
-      + '<p><strong>' + cov + '%</strong> overall coverage across ' + fwControls.length + ' controls</p>'
-      + '<p>Implemented: ' + impl + ' \u00b7 Partial: ' + partial + ' \u00b7 Not Started: ' + ns + '</p>'
-      + (fwRef ? '<p><a href="' + esc(fwRef) + '" target="_blank" style="color:var(--accent)">Framework Reference \u2192</a></p>' : '') + '</div>';
+    const fwSev = {Critical:0, High:0, Medium:0, Low:0};
+    fwFindings.forEach(function(f) { if (fwSev[f.severity] !== undefined) fwSev[f.severity]++; });
 
-    body += '<div class="man-sec"><h4>Governance Artifacts</h4><p>' + fwGovDone + ' of ' + fwGov.length + ' required artifacts complete</p></div>';
+    const audStatus = {Planning:0, 'In Progress':0, Review:0, Completed:0};
+    fwAudits.forEach(function(a) { if (audStatus[a.status] !== undefined) audStatus[a.status]++; });
 
-    body += '<div class="man-sec"><h4>Audits</h4>';
-    if (fwAudits.length === 0) { body += '<p>No audits for this framework</p>'; }
-    else {
+    const covColor = cov >= 80 ? 'var(--green)' : cov >= 50 ? 'var(--yellow)' : cov >= 25 ? 'var(--orange)' : 'var(--red)';
+    const govPct = fwGov.length ? Math.round(fwGovDone / fwGov.length * 100) : 0;
+    const govColor = govPct >= 80 ? 'var(--green)' : govPct >= 50 ? 'var(--yellow)' : 'var(--orange)';
+    const audPct = fwAudits.length ? Math.round(audStatus.Completed / fwAudits.length * 100) : 0;
+
+    body += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(cov, covColor, 'Control Coverage') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + impl + ' impl · ' + partial + ' partial · ' + ns + ' not started</div></div>'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(govPct, govColor, 'Governance Artifacts') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + fwGovDone + ' of ' + fwGov.length + ' complete</div></div>'
+      + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(audPct, 'var(--blue)', 'Audits Completed') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + audStatus.Completed + ' of ' + fwAudits.length + ' audits</div></div>'
+      + '</div>';
+
+    body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Control Implementation Status</h3><span style="font-size:11px;color:var(--t4)">' + fwControls.length + ' controls</span></div>'
+      + (fwControls.length === 0
+          ? '<div style="color:var(--t4);font-size:12px;padding:20px;text-align:center">No controls mapped</div>'
+          : _stacked([{label:'Implemented',value:impl,color:'var(--green)'},{label:'Partially Implemented',value:partial,color:'var(--yellow)'},{label:'Not Started',value:ns,color:'var(--red)'}]))
+      + '</div>'
+      + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Findings by Severity</h3><span style="font-size:11px;color:var(--t4)">' + fwFindings.length + ' findings</span></div>'
+      + (fwFindings.length === 0
+          ? '<div style="color:var(--t4);font-size:12px;padding:20px;text-align:center">No findings for this framework</div>'
+          : _vbars([{label:'Critical',value:fwSev.Critical,color:'var(--red)'},{label:'High',value:fwSev.High,color:'var(--orange)'},{label:'Medium',value:fwSev.Medium,color:'var(--yellow)'},{label:'Low',value:fwSev.Low,color:'var(--green)'}]))
+      + '</div></div>';
+
+    if (fwAudits.length > 0) {
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Audit Progress (Evidence Collection)</h3><span style="font-size:11px;color:var(--t4)">' + fwAudits.length + ' audits</span></div>';
       for (const a of fwAudits) {
         const arts = a.artifacts || [];
         const artsDone = arts.filter(x => x.collected).length;
-        body += '<p><strong>' + esc(a.name) + '</strong> \u2014 <span class="badge ' + statusCls(a.status) + '" style="font-size:10px;vertical-align:middle">' + a.status + '</span> \u00b7 Evidence: ' + artsDone + '/' + arts.length + '</p>';
-      }
-    }
-    body += '</div>';
-
-    if (fwFindings.length > 0) {
-      body += '<div class="man-sec"><h4>Findings (' + fwFindings.length + ')</h4>';
-      for (const f of fwFindings) {
-        const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low';
-        body += '<p><span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span> ' + esc(f.title) + '</p>';
+        const pct = arts.length ? Math.round(artsDone / arts.length * 100) : 0;
+        const aColor = a.status === 'Completed' ? 'var(--green)' : a.status === 'In Progress' ? 'var(--blue)' : a.status === 'Review' ? 'var(--purple)' : 'var(--t3)';
+        body += _hbar(a.name + ' — ' + a.status, pct, aColor, artsDone + ' / ' + arts.length + ' evidence');
       }
       body += '</div>';
     }
 
-    // Control status table
+    if (fwRef) {
+      body += '<div style="margin-bottom:16px;font-size:13px"><a href="' + esc(fwRef) + '" target="_blank" style="color:var(--accent)">Framework Reference →</a></div>';
+    }
+
     if (fwControls.length > 0) {
-      body += '<div class="man-sec"><h4>Control Status Detail</h4>'
+      body += '<div class="card" style="padding:20px;margin-bottom:16px"><div class="card-head" style="margin-bottom:14px"><h3>Control Status Detail</h3></div>'
         + '<div class="table-wrap" style="border:none;margin-top:8px"><table><thead><tr><th>Control ID</th><th>Name</th><th>Status</th></tr></thead><tbody>';
       for (const c of fwControls) {
         body += '<tr><td class="cell-mono" style="color:var(--accent)">' + esc(c.controlId) + '</td><td>' + esc(c.name) + '</td><td><span class="badge ' + statusCls(c.status) + '">' + c.status + '</span></td></tr>';
       }
       body += '</tbody></table></div></div>';
+    }
+
+    if (fwFindings.length > 0) {
+      body += '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Findings (' + fwFindings.length + ')</h3></div>';
+      for (const f of fwFindings) {
+        const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low';
+        body += '<div class="man-sec"><h4>' + esc(f.title) + ' <span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span></h4><p>' + esc(f.description || '') + (f.recommendation ? '<br>Recommendation: ' + esc(f.recommendation) : '') + '</p></div>';
+      }
+      body += '</div>';
     }
   }
 
@@ -1970,9 +2382,10 @@ function pgReports() {
   }
 
   return '<div class="page">'
-    + '<div class="page-head"><div><h2>Reports</h2><p>Framework-specific compliance and risk reports</p></div></div>'
+    + '<div class="page-head"><div><h2>Reports</h2><p>Framework-specific compliance and risk posture — visualized</p></div></div>'
     + '<div class="tabs mb-24" style="flex-wrap:wrap">' + pillsHtml + '</div>'
-    + '<div class="card"><h3 style="font-size:18px;font-weight:700;margin-bottom:4px">' + esc(rptTab) + '</h3>' + timestamp + body + '</div></div>';
+    + '<div style="margin-bottom:16px"><h3 style="font-size:20px;font-weight:700;margin-bottom:4px">' + esc(rptTab) + '</h3>' + timestamp + '</div>'
+    + body + '</div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2021,6 +2434,27 @@ Resources: audits, risks, controls, policies, findings, evidence
 Auth: Bearer token in Authorization header</div>
     </div>
 
+    <div class="card mb-24"><div class="card-head"><h3>AI Providers</h3><span class="cell-dim" style="font-size:11px">Used by policy gap analysis and framework update suggestions</span></div>
+      <div class="card" style="padding:14px 16px;margin-bottom:16px;background:var(--bg-input);border-left:4px solid var(--accent)">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">Getting Started — Policy Gap Analysis</div>
+        <ol style="font-size:12px;color:var(--t2);line-height:1.8;padding-left:20px;margin:0">
+          <li>Install the Anthropic SDK on the server: open a terminal in the <code>grc-vault-web/grc-vault</code> directory and run <code>npm install</code>. (Only needed once, after the AI feature is first deployed.)</li>
+          <li>Paste your Anthropic API key into the <strong>Anthropic Claude</strong> card below, leave <strong>Active Provider</strong> set to Anthropic, and click <strong>Save AI Configuration</strong>.</li>
+          <li>Click <strong>Test Connection</strong> on the Anthropic card to confirm the key works. You should see <span style="color:var(--green)">✓ Connected</span> with the model name.</li>
+          <li>Go to <strong>Governance</strong>, open any artifact, and use the <strong>Compliance Review</strong> section at the top of the modal. Click <strong>Analyze Gaps</strong> next to a framework — typically 30–90 seconds depending on framework size.</li>
+          <li>Review the results: each control gets a status (Met / Partial / Gap / N/A), confidence score, evidence quoted directly from the policy, and recommended remediation language for any gaps.</li>
+        </ol>
+        <div style="font-size:11px;color:var(--t4);margin-top:10px;line-height:1.6">
+          <strong>Notes.</strong>
+          API keys are stored server-side in the <code>ai_config</code> store and masked on read.
+          You can also set the <code>ANTHROPIC_API_KEY</code> environment variable on the server as a fallback.
+          Stored analyses are versioned against the framework catalog used at the moment of the run, so reports remain reproducible after framework updates.
+          Other providers (OpenAI, Azure OpenAI, Google Gemini) are visible in the UI but not yet wired in — Anthropic is the only implemented engine.
+        </div>
+      </div>
+      <div id="aiProvidersBody"><div class="empty"><p style="font-size:12px;color:var(--t3)">Loading AI provider configuration…</p></div></div>
+    </div>
+
     <div class="card mb-24"><div class="card-head"><h3>Data Management</h3></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
         <button class="btn btn-secondary" onclick="doExport()">${I.download} Export All Data</button>
@@ -2043,12 +2477,105 @@ async function settingsPostRender() {
     const g = $('#storeGrid');
     if(g && c.ok) g.innerHTML = Object.entries(c.data).map(([k,v])=>`<div class="store-cell"><div class="nm">${k}</div><div class="ct">${v} records</div></div>`).join('');
   } catch(e) {}
+  renderAiProviders();
 }
 
 async function saveCfg() {
   const cfg={_id:S.config._id||'main-config',apiUrl:$('#cfgUrl').value.trim(),apiKey:$('#cfgKey').value.trim(),syncInterval:+$('#cfgSync').value||300};
   if(S.config._id) await API.update('config',cfg._id,cfg); else await API.create('config',cfg);
   S.config=cfg; renderSidebar(); toast('Configuration saved');
+}
+
+// ─── AI Providers settings ───────────────────────────────────────────────
+// Pluggable: the server defines PROVIDER_DEFAULTS; this UI renders whatever
+// providers it returns. Only providers with implemented:true can be set as
+// the active engine; the others render disabled with a "coming soon" label.
+let _aiCfgCache = null;
+async function renderAiProviders() {
+  const mount = $('#aiProvidersBody'); if (!mount) return;
+  const r = await API.getAiConfig();
+  if (!r.ok) { mount.textContent = 'Failed to load AI config: ' + (r.error||''); return; }
+  _aiCfgCache = r.data;
+  const providers = r.providers || {};
+  const cfg = r.data || { activeProvider:'anthropic', providers:{} };
+  const keys = Object.keys(providers);
+  const activeOpts = keys.map(k => {
+    const p = providers[k];
+    const dis = p.implemented ? '' : ' disabled';
+    const sel = cfg.activeProvider===k ? ' selected' : '';
+    const label = esc(p.label) + (p.implemented ? '' : ' (coming soon)');
+    return `<option value="${esc(k)}"${sel}${dis}>${label}</option>`;
+  }).join('');
+  const labelMap = { apiKey:'API Key', model:'Model', endpoint:'Endpoint', deployment:'Deployment' };
+  const cards = keys.map(k => {
+    const p = providers[k];
+    const stored = (cfg.providers && cfg.providers[k]) || {};
+    const fields = p.fields || ['apiKey','model'];
+    const phMap = {
+      apiKey: k==='anthropic' ? 'sk-ant-…' : k==='openai' ? 'sk-…' : 'API key',
+      model: p.defaultModel || 'model identifier',
+      endpoint: 'https://your-resource.openai.azure.com',
+      deployment: 'deployment-name'
+    };
+    const fieldsHtml = fields.map(f => {
+      const type = f === 'apiKey' ? 'password' : 'text';
+      const disAttr = p.implemented ? '' : ' disabled';
+      return `<div class="fg"><label class="fl">${esc(labelMap[f]||f)}</label><input class="fi" id="ai_${esc(k)}_${esc(f)}" type="${type}" value="${esc(stored[f]||'')}" placeholder="${esc(phMap[f]||'')}"${disAttr}></div>`;
+    }).join('');
+    const enabled = !!stored.enabled;
+    const statusDot = enabled
+      ? '<span style="color:var(--green);font-size:11px">● Enabled</span>'
+      : '<span style="color:var(--t4);font-size:11px">○ Disabled</span>';
+    const comingSoon = p.implemented ? '' : '<span class="badge b-neutral" style="font-size:9px;margin-left:6px">Coming soon</span>';
+    const disAttr = p.implemented ? '' : ' disabled';
+    const testRow = p.implemented
+      ? `<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="testAiProvider('${esc(k)}')">Test Connection</button><span id="aiTest_${esc(k)}" style="font-size:11px;font-weight:600;align-self:center"></span></div>`
+      : '';
+    return `<div class="card" style="padding:14px;margin-bottom:12px;background:var(--bg-input)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div><strong>${esc(p.label)}</strong>${comingSoon} <span style="margin-left:8px">${statusDot}</span></div>
+        <label style="font-size:12px;cursor:pointer"><input type="checkbox" id="ai_${esc(k)}_enabled"${enabled?' checked':''}${disAttr}> Enabled</label>
+      </div>
+      <div class="fr fr2">${fieldsHtml}</div>
+      ${testRow}
+    </div>`;
+  }).join('');
+  mount.innerHTML = `<div class="fr fr2" style="margin-bottom:14px">
+    <div class="fg"><label class="fl">Active Provider <span style="color:var(--t4);font-weight:normal">— used for gap analysis</span></label><select class="fs" id="aiActiveProvider">${activeOpts}</select></div>
+    <div class="fg" style="align-self:end"><button class="btn btn-primary" onclick="saveAiConfig()">Save AI Configuration</button></div>
+  </div>
+  ${cards}
+  <p style="font-size:11px;color:var(--t4);line-height:1.6;margin-top:8px">API keys are stored in the server-side <code>ai_config</code> store and masked on read. You can also set <code>ANTHROPIC_API_KEY</code> as an environment variable — it is used as a fallback when no key is saved here.</p>`;
+}
+
+async function saveAiConfig() {
+  if (!_aiCfgCache) return;
+  const providers = {};
+  const keys = Object.keys(_aiCfgCache.providers || {});
+  for (const k of keys) {
+    const rec = {};
+    const en = $('#ai_' + k + '_enabled'); if (en) rec.enabled = en.checked;
+    for (const f of ['apiKey','model','endpoint','deployment']) {
+      const el = $('#ai_' + k + '_' + f);
+      if (el) rec[f] = el.value.trim();
+    }
+    providers[k] = Object.assign({}, _aiCfgCache.providers[k] || {}, rec);
+  }
+  const sel = $('#aiActiveProvider');
+  const active = sel ? sel.value : (_aiCfgCache.activeProvider || 'anthropic');
+  const r = await API.saveAiConfig({ activeProvider: active, providers });
+  if (r.ok) { _aiCfgCache = r.data; toast('AI configuration saved'); }
+  else toast('Save failed: ' + (r.error||''), 'error');
+}
+
+async function testAiProvider(key) {
+  const el = $('#aiTest_' + key);
+  if (el) { el.style.color = 'var(--t2)'; el.textContent = 'Testing…'; }
+  await saveAiConfig();
+  const r = await API.testAiProvider(key);
+  if (!el) return;
+  if (r.ok) { el.style.color = 'var(--green)'; el.textContent = '✓ Connected (' + (r.model||'') + ')'; }
+  else { el.style.color = 'var(--red)'; el.textContent = 'Failed: ' + (r.error||'unknown'); }
 }
 
 async function testCfg() {

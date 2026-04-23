@@ -34,6 +34,11 @@ STORES.forEach((name) => {
 // User and audit log stores
 db.users = Datastore.create({ filename: path.join(dbDir, "users.db"), autoload: true, timestampData: true });
 db.auditlog = Datastore.create({ filename: path.join(dbDir, "auditlog.db"), autoload: true, timestampData: true });
+// Gap-analysis and AI-provider config stores are served by server-gap.js
+// with custom routes; they're created here so the NeDB files live alongside
+// the others and are covered by the standard backup/export paths.
+db.gap_analyses = Datastore.create({ filename: path.join(dbDir, "gap_analyses.db"), autoload: true, timestampData: true });
+db.ai_config    = Datastore.create({ filename: path.join(dbDir, "ai_config.db"),    autoload: true, timestampData: true });
 
 // ─── File Upload Setup ────────────────────────────────────────────────────
 const uploadDir = path.join(__dirname, "uploads");
@@ -564,6 +569,16 @@ app.get("/api/uploads/:filename", (req, res) => {
   if (!fs.existsSync(filePath)) return res.status(404).json({ ok: false, error: "File not found" });
   res.sendFile(filePath);
 });
+
+// ─── Policy Gap Analysis (AI-assisted) ─────────────────────────────────────
+// Mounts /api/frameworks, /api/ai/*, /api/analysis/policy-gap, and
+// /api/gap-analyses/* — see server-gap.js for the full surface.
+try {
+  const { mountGapRoutes } = require("./server-gap");
+  mountGapRoutes(app, db, logAudit);
+} catch (e) {
+  console.warn("Gap analysis routes disabled: " + e.message);
+}
 
 // SPA fallback
 app.get("*", (req, res) => {
