@@ -132,6 +132,7 @@ const NAV = [
   {s:'MODULES'},{id:'audits',l:'Audit Collection',i:'audit'},{id:'risks',l:'Risk Register',i:'risk'},
   {id:'benchmarks',l:'Benchmarks',i:'benchmark'},{id:'compliance',l:'Compliance',i:'compliance'},
   {id:'csf2',l:'NIST CSF 2.0',i:'compliance'},
+  {id:'rmfai',l:'NIST AI RMF 1.0',i:'compliance'},
   {id:'governance',l:'Governance',i:'governance'},
   {id:'ssp',l:'800-53 Rev 5 SSP',i:'governance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
@@ -266,7 +267,7 @@ function closeModal() { const o=$('#overlay'); if(o) o.remove(); }
 // ─── Render Router ─────────────────────────────────────────────────────────
 function render() {
   const c = $('#content');
-  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,ssp:pgSSP,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
+  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,rmfai:pgRmfAi,ssp:pgSSP,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
   c.innerHTML = (fn[S.module]||pgDash)();
   if (S.module==='settings') settingsPostRender();
 }
@@ -1642,6 +1643,201 @@ async function saveCSF2Score(subId, tier) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// NIST AI RMF 1.0 ASSESSMENT
+// ═══════════════════════════════════════════════════════════════════════════
+let rmfAiView = 'assessment'; // 'assessment' or 'report'
+let rmfAiExpandedFn = null;
+let rmfAiExpandedCat = null;
+
+function _rmfAiScores() {
+  return S.config.rmfAiScores || {};
+}
+
+function _rmfAiFnScore(fn) {
+  const scores = _rmfAiScores();
+  let total = 0, count = 0;
+  for (const cat of fn.categories) {
+    for (const sub of cat.subcategories) {
+      const s = scores[sub.id];
+      if (s && s > 0) { total += s; count++; }
+    }
+  }
+  return count > 0 ? (total / count) : 0;
+}
+
+function _rmfAiCatScore(cat) {
+  const scores = _rmfAiScores();
+  let total = 0, count = 0;
+  for (const sub of cat.subcategories) {
+    const s = scores[sub.id];
+    if (s && s > 0) { total += s; count++; }
+  }
+  return count > 0 ? (total / count) : 0;
+}
+
+function pgRmfAi() {
+  if (typeof RMF_AI === 'undefined') return '<div class="page"><div class="empty"><p>NIST AI RMF data not loaded. Please refresh the page.</p></div></div>';
+  const scores = _rmfAiScores();
+
+  const fnData = RMF_AI.functions.map(fn => {
+    const score = _rmfAiFnScore(fn);
+    let totalSubs = 0, assessedSubs = 0;
+    for (const cat of fn.categories) {
+      for (const sub of cat.subcategories) {
+        totalSubs++;
+        if (scores[sub.id] && scores[sub.id] > 0) assessedSubs++;
+      }
+    }
+    return { fn, score, totalSubs, assessedSubs };
+  });
+
+  const totalSubs = fnData.reduce((s, d) => s + d.totalSubs, 0);
+  const assessedSubs = fnData.reduce((s, d) => s + d.assessedSubs, 0);
+  const overallScore = fnData.reduce((s, d) => s + d.score, 0) / (fnData.filter(d => d.score > 0).length || 1);
+
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>NIST AI RMF 1.0 Assessment</h2><p>Assess organizational maturity across the 4 core AI RMF functions (Govern, Map, Measure, Manage) — all categories and subcategories from NIST AI 100-1</p></div></div>'
+    + '<div class="tabs mb-24">'
+    + '<button class="tab-btn ' + (rmfAiView === 'assessment' ? 'on' : '') + '" onclick="rmfAiView=\'assessment\';render()">Assessment</button>'
+    + '<button class="tab-btn ' + (rmfAiView === 'report' ? 'on' : '') + '" onclick="rmfAiView=\'report\';render()">Maturity Report</button></div>';
+
+  if (rmfAiView === 'report') {
+    html += _rmfAiReport(fnData, overallScore, totalSubs, assessedSubs);
+  } else {
+    html += _rmfAiAssessment(fnData, scores);
+  }
+  html += '</div>';
+  return html;
+}
+
+function _rmfAiReport(fnData, overallScore, totalSubs, assessedSubs) {
+  const pct = totalSubs ? Math.round(assessedSubs / totalSubs * 100) : 0;
+
+  let html = '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:' + _tierColor(overallScore) + '">' + overallScore.toFixed(1) + '</div><div class="stat-lbl">Overall Maturity</div><div class="stat-sub">' + _tierLabel(overallScore) + '</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + assessedSubs + '/' + totalSubs + '</div><div class="stat-lbl">Assessed</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + pct + '%</div><div class="stat-lbl">Complete</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--t2)">4.0</div><div class="stat-lbl">Target (Adaptive)</div></div></div>';
+
+  // Function maturity bars
+  html += '<div class="card mb-24"><div class="card-head"><h3>Function Maturity — Tier 1: Functions</h3></div>';
+  for (const d of fnData) {
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
+      + '<div style="min-width:100px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + d.fn.color + '"></span><span style="font-size:13px;font-weight:600;color:var(--t1)">' + d.fn.id + '</span></div>'
+      + '<div style="min-width:80px;font-size:12px;color:var(--t2)">' + esc(d.fn.name) + '</div>'
+      + '<div class="pbar" style="flex:1;height:8px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.fn.color + '"></div></div>'
+      + '<div style="min-width:60px;text-align:right;font-family:var(--mono);font-size:13px;font-weight:700;color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="min-width:90px;font-size:11px;color:var(--t3)">' + _tierLabel(d.score) + '</div></div>';
+  }
+  html += '</div>';
+
+  // Category breakdown
+  html += '<div class="card mb-24"><div class="card-head"><h3>Category Maturity — Tier 2: Categories</h3></div>';
+  for (const d of fnData) {
+    html += '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:' + d.fn.color + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</div>';
+    for (const cat of d.fn.categories) {
+      const catScore = _rmfAiCatScore(cat);
+      const catPct = Math.round(catScore / 4 * 100);
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;padding-left:16px">'
+        + '<div style="min-width:70px;font-size:12px;font-family:var(--mono);color:var(--accent)">' + cat.id + '</div>'
+        + '<div style="min-width:180px;font-size:12px;color:var(--t2)">' + esc(cat.name) + '</div>'
+        + '<div class="pbar" style="flex:1;height:5px"><div class="pfill" style="width:' + catPct + '%;background:' + d.fn.color + '"></div></div>'
+        + '<div style="min-width:40px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:600;color:' + _tierColor(catScore) + '">' + catScore.toFixed(1) + '</div></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Subcategory detail
+  const scores = _rmfAiScores();
+  html += '<div class="card"><div class="card-head"><h3>Subcategory Detail — Tier 3: Subcategories</h3></div>'
+    + '<div class="table-wrap" style="border:none"><table><thead><tr><th>ID</th><th>Subcategory</th><th>Tier</th><th>Maturity</th></tr></thead><tbody>';
+  for (const d of fnData) {
+    html += '<tr><td colspan="4" style="background:var(--bg-2);font-weight:700;color:' + d.fn.color + ';font-size:12px;text-transform:uppercase;letter-spacing:1px;padding:10px 18px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</td></tr>';
+    for (const cat of d.fn.categories) {
+      html += '<tr><td colspan="4" style="background:var(--bg-input);font-weight:600;color:var(--accent);font-size:11px;padding:8px 18px 8px 28px">' + cat.id + ' — ' + esc(cat.name) + '</td></tr>';
+      for (const sub of cat.subcategories) {
+        const s = scores[sub.id] || 0;
+        const tierBadge = s > 0 ? '<span class="badge ' + (s >= 4 ? 'b-low' : s >= 3 ? 'b-info' : s >= 2 ? 'b-medium' : 'b-critical') + '">' + _tierLabel(s) + '</span>' : '<span style="color:var(--t4);font-size:11px">Not assessed</span>';
+        html += '<tr><td class="cell-mono" style="padding-left:38px;color:var(--t2);font-size:11px">' + sub.id + '</td>'
+          + '<td style="font-size:12px;color:var(--t1)">' + esc(sub.name) + '</td>'
+          + '<td class="cell-mono" style="font-weight:700;color:' + _tierColor(s) + '">' + (s > 0 ? s : '—') + '</td>'
+          + '<td>' + tierBadge + '</td></tr>';
+      }
+    }
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function _rmfAiAssessment(fnData, scores) {
+  let html = '';
+  for (const d of fnData) {
+    const isExpanded = rmfAiExpandedFn === d.fn.id;
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div class="card mb-24" style="border-left:3px solid ' + d.fn.color + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:4px 0" onclick="rmfAiExpandedFn=rmfAiExpandedFn===\'' + d.fn.id + '\'?null:\'' + d.fn.id + '\';rmfAiExpandedCat=null;render()">'
+      + '<div><div style="font-size:16px;font-weight:700;color:' + d.fn.color + '">' + d.fn.id + ' — ' + esc(d.fn.name) + '</div>'
+      + '<div style="font-size:12px;color:var(--t3);margin-top:4px">' + esc(d.fn.desc || '') + '</div></div>'
+      + '<div style="text-align:right;min-width:100px"><div style="font-size:24px;font-weight:700;font-family:var(--mono);color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="font-size:10px;color:var(--t3)">' + _tierLabel(d.score) + ' · ' + d.assessedSubs + '/' + d.totalSubs + '</div></div></div>'
+      + '<div class="pbar" style="height:4px;margin-top:10px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.fn.color + '"></div></div>';
+
+    if (isExpanded) {
+      for (const cat of d.fn.categories) {
+        const catScore = _rmfAiCatScore(cat);
+        const isCatExpanded = rmfAiExpandedCat === cat.id;
+        html += '<div style="margin-top:16px;border:1px solid var(--border-0);border-radius:var(--radius);overflow:hidden">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-2);cursor:pointer" onclick="event.stopPropagation();rmfAiExpandedCat=rmfAiExpandedCat===\'' + cat.id + '\'?null:\'' + cat.id + '\';render()">'
+          + '<div style="font-size:13px;font-weight:600;color:var(--accent)">' + cat.id + ' — ' + esc(cat.name) + '</div>'
+          + '<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:' + _tierColor(catScore) + '">' + catScore.toFixed(1) + '</div></div>';
+
+        if (isCatExpanded) {
+          for (const sub of cat.subcategories) {
+            const subScore = scores[sub.id] || 0;
+            html += '<div style="padding:14px 16px;border-top:1px solid var(--border-0)">'
+              + '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px">'
+              + '<div><span style="font-family:var(--mono);font-size:11px;color:var(--t3)">' + sub.id + '</span>'
+              + '<div style="font-size:13px;font-weight:600;color:var(--t1);margin-top:2px">' + esc(sub.name) + '</div></div>'
+              + '<select class="ctrl-status-sel" style="min-width:130px" onchange="saveRmfAiScore(\'' + sub.id + '\',+this.value)">'
+              + '<option value="0"' + (subScore === 0 ? ' selected' : '') + '>Not Assessed</option>'
+              + '<option value="1"' + (subScore === 1 ? ' selected' : '') + '>Tier 1 — Partial</option>'
+              + '<option value="2"' + (subScore === 2 ? ' selected' : '') + '>Tier 2 — Risk Informed</option>'
+              + '<option value="3"' + (subScore === 3 ? ' selected' : '') + '>Tier 3 — Repeatable</option>'
+              + '<option value="4"' + (subScore === 4 ? ' selected' : '') + '>Tier 4 — Adaptive</option></select></div>';
+
+            if (sub.questions && sub.questions.length > 0) {
+              html += '<div style="padding-left:8px;border-left:2px solid var(--border-0);margin-top:8px">';
+              for (const q of sub.questions) {
+                html += '<div style="font-size:12px;color:var(--t2);padding:3px 0;line-height:1.6">• ' + esc(q) + '</div>';
+              }
+              html += '</div>';
+            }
+            html += '</div>';
+          }
+        }
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+async function saveRmfAiScore(subId, tier) {
+  if (!S.config.rmfAiScores) S.config.rmfAiScores = {};
+  S.config.rmfAiScores[subId] = tier;
+  if (S.config._id) {
+    await API.update('config', S.config._id, { rmfAiScores: S.config.rmfAiScores });
+  } else {
+    S.config._id = 'main-config';
+    await API.create('config', S.config);
+  }
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NIST 800-53 SYSTEM SECURITY PLAN (SSP)
 // ═══════════════════════════════════════════════════════════════════════════
 let sspTab = 'identification';
@@ -2082,7 +2278,7 @@ function pgReports() {
   const activeFws = S.config.activeFrameworks || [];
   const allFws = Object.keys(FW);
   const displayFws = activeFws.length > 0 ? allFws.filter(fw => activeFws.includes(fw)) : allFws;
-  const tabs = ['Executive Summary'].concat(displayFws.map(fw => fw + ' Report')).concat(['Risk Register', 'Audit Findings']);
+  const tabs = ['Executive Summary'].concat(displayFws.map(fw => fw + ' Report')).concat(['Risk Register', 'Audit Findings', 'AI RMF Maturity']);
   if (!tabs.includes(rptTab)) rptTab = 'Executive Summary';
 
   const timestamp = '<div style="font-size:11px;color:var(--t4);margin-bottom:20px">Generated ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}) + ' at ' + new Date().toLocaleTimeString() + '</div>';
@@ -2294,6 +2490,115 @@ function pgReports() {
       body += '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Findings Detail</h3></div>'
         + S.findings.map(function(f) { const sb = f.severity === 'Critical' ? 'b-critical' : f.severity === 'High' ? 'b-high' : f.severity === 'Medium' ? 'b-medium' : 'b-low'; return '<div class="man-sec"><h4>' + esc(f.title) + ' <span class="badge ' + sb + '" style="font-size:10px;vertical-align:middle">' + f.severity + '</span></h4><p>' + esc(f.description || '') + (f.recommendation ? '<br>Recommendation: ' + esc(f.recommendation) : '') + '</p></div>'; }).join('')
         + '</div>';
+    }
+  }
+
+  else if (rptTab === 'AI RMF Maturity') {
+    if (typeof RMF_AI === 'undefined') {
+      body = '<div class="empty"><p>NIST AI RMF data not loaded.</p></div>';
+    } else {
+      const scores = _rmfAiScores();
+      const fnData = RMF_AI.functions.map(function(fn) {
+        const score = _rmfAiFnScore(fn);
+        let totalSubs = 0, assessedSubs = 0;
+        for (const cat of fn.categories) {
+          for (const sub of cat.subcategories) {
+            totalSubs++;
+            if (scores[sub.id] && scores[sub.id] > 0) assessedSubs++;
+          }
+        }
+        return { fn: fn, score: score, totalSubs: totalSubs, assessedSubs: assessedSubs };
+      });
+      const totalSubs = fnData.reduce(function(s, d) { return s + d.totalSubs; }, 0);
+      const assessedSubs = fnData.reduce(function(s, d) { return s + d.assessedSubs; }, 0);
+      const overallScore = fnData.reduce(function(s, d) { return s + d.score; }, 0) / (fnData.filter(function(d) { return d.score > 0; }).length || 1);
+      const completePct = totalSubs ? Math.round(assessedSubs / totalSubs * 100) : 0;
+      const maturityPct = Math.round(overallScore / 4 * 100);
+      const maturityColor = overallScore >= 3.5 ? 'var(--green)' : overallScore >= 2.5 ? 'var(--blue)' : overallScore >= 1.5 ? 'var(--yellow)' : overallScore > 0 ? 'var(--red)' : 'var(--t4)';
+
+      // Tier distribution across all subcategories
+      const tierDist = {0:0, 1:0, 2:0, 3:0, 4:0};
+      for (const fn of RMF_AI.functions) {
+        for (const cat of fn.categories) {
+          for (const sub of cat.subcategories) {
+            const s = scores[sub.id] || 0;
+            tierDist[s] = (tierDist[s] || 0) + 1;
+          }
+        }
+      }
+
+      body += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">'
+        + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(maturityPct, maturityColor, 'Overall Maturity') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + overallScore.toFixed(1) + ' / 4.0 · ' + _tierLabel(overallScore) + '</div></div>'
+        + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center">' + _donut(completePct, 'var(--accent)', 'Assessment Complete') + '<div style="font-size:11px;color:var(--t4);margin-top:8px;text-align:center">' + assessedSubs + ' of ' + totalSubs + ' subcategories</div></div>'
+        + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--blue)">' + RMF_AI.functions.length + '</div><div style="font-size:11px;color:var(--t3);margin-top:6px;text-transform:uppercase;letter-spacing:0.4px;font-weight:600">Functions</div><div style="font-size:11px;color:var(--t4);margin-top:8px">Govern · Map · Measure · Manage</div></div>'
+        + '<div class="card" style="padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--purple)">' + totalSubs + '</div><div style="font-size:11px;color:var(--t3);margin-top:6px;text-transform:uppercase;letter-spacing:0.4px;font-weight:600">Subcategories</div><div style="font-size:11px;color:var(--t4);margin-top:8px">NIST AI 100-1</div></div>'
+        + '</div>';
+
+      // Function maturity bars
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Function Maturity</h3><span style="font-size:11px;color:var(--t4)">tier 0–4</span></div>';
+      for (const d of fnData) {
+        const fnPct = Math.round(d.score / 4 * 100);
+        body += _hbar(d.fn.id + ' — ' + d.fn.name, fnPct, d.fn.color, d.score.toFixed(1) + ' · ' + _tierLabel(d.score) + ' · ' + d.assessedSubs + '/' + d.totalSubs);
+      }
+      body += '</div>';
+
+      // Two-column: tier distribution + assessment progress
+      body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Tier Distribution</h3><span style="font-size:11px;color:var(--t4)">' + totalSubs + ' subcategories</span></div>'
+        + _vbars([
+            {label:'Not Assessed', value:tierDist[0], color:'var(--t4)'},
+            {label:'Partial',      value:tierDist[1], color:'var(--red)'},
+            {label:'Risk Inf.',    value:tierDist[2], color:'var(--yellow)'},
+            {label:'Repeatable',   value:tierDist[3], color:'var(--blue)'},
+            {label:'Adaptive',     value:tierDist[4], color:'var(--green)'}
+          ])
+        + '</div>'
+        + '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Assessment Progress by Function</h3></div>';
+      for (const d of fnData) {
+        const apct = d.totalSubs ? Math.round(d.assessedSubs / d.totalSubs * 100) : 0;
+        body += _hbar(d.fn.id + ' — ' + d.fn.name, apct, d.fn.color, d.assessedSubs + '/' + d.totalSubs + ' · ' + apct + '%');
+      }
+      body += '</div></div>';
+
+      // Category breakdown per function
+      body += '<div class="card" style="padding:20px;margin-bottom:20px"><div class="card-head" style="margin-bottom:14px"><h3>Category Maturity Breakdown</h3></div>';
+      for (const d of fnData) {
+        body += '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:' + d.fn.color + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</div>';
+        for (const cat of d.fn.categories) {
+          const catScore = _rmfAiCatScore(cat);
+          const catPct = Math.round(catScore / 4 * 100);
+          body += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;padding-left:16px">'
+            + '<div style="min-width:70px;font-size:12px;font-family:var(--mono);color:var(--accent)">' + cat.id + '</div>'
+            + '<div style="min-width:220px;font-size:12px;color:var(--t2)">' + esc(cat.name) + '</div>'
+            + '<div class="pbar" style="flex:1;height:6px"><div class="pfill" style="width:' + catPct + '%;background:' + d.fn.color + '"></div></div>'
+            + '<div style="min-width:50px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:700;color:' + _tierColor(catScore) + '">' + catScore.toFixed(1) + '</div></div>';
+        }
+        body += '</div>';
+      }
+      body += '</div>';
+
+      // Subcategory detail table
+      body += '<div class="card" style="padding:20px"><div class="card-head" style="margin-bottom:14px"><h3>Subcategory Detail</h3><span style="font-size:11px;color:var(--t4)">' + totalSubs + ' subcategories</span></div>'
+        + '<div class="table-wrap" style="border:none"><table><thead><tr><th>ID</th><th>Subcategory</th><th>Tier</th><th>Maturity</th></tr></thead><tbody>';
+      for (const d of fnData) {
+        body += '<tr><td colspan="4" style="background:var(--bg-2);font-weight:700;color:' + d.fn.color + ';font-size:12px;text-transform:uppercase;letter-spacing:1px;padding:10px 18px">' + d.fn.id + ' — ' + esc(d.fn.name) + '</td></tr>';
+        for (const cat of d.fn.categories) {
+          body += '<tr><td colspan="4" style="background:var(--bg-input);font-weight:600;color:var(--accent);font-size:11px;padding:8px 18px 8px 28px">' + cat.id + ' — ' + esc(cat.name) + '</td></tr>';
+          for (const sub of cat.subcategories) {
+            const s = scores[sub.id] || 0;
+            const tierBadge = s > 0 ? '<span class="badge ' + (s >= 4 ? 'b-low' : s >= 3 ? 'b-info' : s >= 2 ? 'b-medium' : 'b-critical') + '">' + _tierLabel(s) + '</span>' : '<span style="color:var(--t4);font-size:11px">Not assessed</span>';
+            body += '<tr><td class="cell-mono" style="padding-left:38px;color:var(--t2);font-size:11px">' + sub.id + '</td>'
+              + '<td style="font-size:12px;color:var(--t1)">' + esc(sub.name) + '</td>'
+              + '<td class="cell-mono" style="font-weight:700;color:' + _tierColor(s) + '">' + (s > 0 ? s : '—') + '</td>'
+              + '<td>' + tierBadge + '</td></tr>';
+          }
+        }
+      }
+      body += '</tbody></table></div></div>';
+
+      if (RMF_AI.ref) {
+        body += '<div style="margin-top:16px;font-size:13px"><a href="' + esc(RMF_AI.ref) + '" target="_blank" style="color:var(--accent)">NIST AI Risk Management Framework Reference →</a></div>';
+      }
     }
   }
 
