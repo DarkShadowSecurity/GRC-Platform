@@ -276,6 +276,25 @@ function render() {
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
+function _dashFwMaturity(label, color, totalSubs, scores, route) {
+  let t = 0, c = 0;
+  for (const id in scores) { const s = scores[id]; if (s && s > 0) { t += s; c++; } }
+  const avg = c > 0 ? (t / c) : 0;
+  const pct = Math.round(avg / 4 * 100);
+  const cov = totalSubs ? Math.round(c / totalSubs * 100) : 0;
+  const tier = avg > 0 ? _tierLabel(avg) : 'Not assessed';
+  const tcolor = avg > 0 ? _tierColor(avg) : 'var(--t4)';
+  return '<div style="cursor:pointer" onclick="go(\'' + route + '\')">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+    + '<div style="display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + '"></span>'
+    + '<span style="font-size:13px;font-weight:600;color:var(--t1)">' + esc(label) + '</span></div>'
+    + '<div style="text-align:right"><span style="font-family:var(--mono);font-size:14px;font-weight:700;color:' + tcolor + '">' + (avg > 0 ? avg.toFixed(1) : '—') + '</span>'
+    + '<span style="font-size:10px;color:var(--t3);margin-left:6px">' + tier + '</span></div></div>'
+    + '<div class="pbar" style="height:6px"><div class="pfill" style="width:' + pct + '%;background:' + color + '"></div></div>'
+    + '<div style="font-size:10px;color:var(--t4);margin-top:4px">' + c + '/' + totalSubs + ' assessed · ' + cov + '% coverage</div>'
+    + '</div>';
+}
+
 function pgDash() {
   const oa = S.audits.filter(a=>a.status!=='Completed').length;
   const levels = {Critical:0,High:0,Medium:0,Low:0};
@@ -285,6 +304,18 @@ function pgDash() {
   const of_ = S.findings.filter(f=>f.status==='Open').length;
   const circ = Math.round(cp * 3.77);
   const mx = Math.max(levels.Critical,levels.High,levels.Medium,levels.Low,1);
+
+  // Framework maturity widget — counts subcategory/control totals from each
+  // loaded data file and pulls scores from the main config doc.
+  let csf2Total = 0;
+  if (typeof CSF2 !== 'undefined') for (const fn of CSF2.functions) for (const cat of fn.categories) csf2Total += cat.subcategories.length;
+  let rmfAiTotal = 0;
+  if (typeof RMF_AI !== 'undefined') for (const fn of RMF_AI.functions) for (const cat of fn.categories) rmfAiTotal += cat.subcategories.length;
+  let isoTotal = 0;
+  if (typeof ISO_42001 !== 'undefined') for (const g of ISO_42001.groups) isoTotal += g.controls.length;
+  const csf2Bar = (typeof CSF2 !== 'undefined') ? _dashFwMaturity('NIST CSF 2.0', '#3ea89f', csf2Total, S.config.csf2Scores || {}, 'csf2') : '';
+  const rmfBar = (typeof RMF_AI !== 'undefined') ? _dashFwMaturity('NIST AI RMF 1.0', '#8b5cf6', rmfAiTotal, S.config.rmfAiScores || {}, 'rmfai') : '';
+  const isoBar = (typeof ISO_42001 !== 'undefined') ? _dashFwMaturity('ISO 42001 AIMS', '#10b981', isoTotal, S.config.iso42001Scores || {}, 'iso42001') : '';
 
   return `<div class="page">
     <div class="page-head"><div><h2>Dashboard</h2><p>Enterprise risk and compliance overview</p></div></div>
@@ -302,6 +333,9 @@ function pgDash() {
         <div class="donut"><svg viewBox="0 0 150 150"><circle cx="75" cy="75" r="62" fill="none" stroke="var(--border-0)" stroke-width="11"/><circle cx="75" cy="75" r="62" fill="none" stroke="var(--green)" stroke-width="11" stroke-dasharray="${circ} 390" stroke-linecap="round"/></svg><div class="donut-val" style="color:var(--green)">${cp}%</div></div>
         <div class="tac mt-8" style="font-size:12px;color:var(--t3)">${ic} of ${S.controls.length} controls implemented</div>
       </div>
+    </div>
+    <div class="card mb-24"><div class="card-head"><h3>Framework Maturity</h3><span style="font-size:11px;color:var(--t4)">Click a row to open the assessment</span></div>
+      <div style="display:flex;flex-direction:column;gap:18px;padding:4px 0">${csf2Bar}${rmfBar}${isoBar}</div>
     </div>
     <div class="card"><div class="card-head"><h3>Recent Audits</h3></div>
       ${S.audits.length===0?'<div class="empty"><p>No audits yet — create one in Audit Collection</p></div>':
