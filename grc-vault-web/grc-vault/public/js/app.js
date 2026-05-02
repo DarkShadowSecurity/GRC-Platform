@@ -133,6 +133,7 @@ const NAV = [
   {id:'benchmarks',l:'Benchmarks',i:'benchmark'},{id:'compliance',l:'Compliance',i:'compliance'},
   {id:'csf2',l:'NIST CSF 2.0',i:'compliance'},
   {id:'rmfai',l:'NIST AI RMF 1.0',i:'compliance'},
+  {id:'iso42001',l:'ISO 42001 AIMS',i:'compliance'},
   {id:'governance',l:'Governance',i:'governance'},
   {id:'ssp',l:'800-53 Rev 5 SSP',i:'governance'},
   {s:'OUTPUT'},{id:'reports',l:'Reports',i:'reports'},{id:'manual',l:'User Manual',i:'manual'},
@@ -267,7 +268,7 @@ function closeModal() { const o=$('#overlay'); if(o) o.remove(); }
 // ─── Render Router ─────────────────────────────────────────────────────────
 function render() {
   const c = $('#content');
-  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,rmfai:pgRmfAi,ssp:pgSSP,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
+  const fn = {dashboard:pgDash,audits:pgAudits,risks:pgRisks,benchmarks:pgBench,compliance:pgComp,governance:pgGov,csf2:pgCSF2,rmfai:pgRmfAi,iso42001:pgIso42001,ssp:pgSSP,reports:pgReports,manual:pgManual,settings:pgSettings,users:pgUsers,auditlog:pgAuditLog};
   c.innerHTML = (fn[S.module]||pgDash)();
   if (S.module==='settings') settingsPostRender();
 }
@@ -1830,6 +1831,154 @@ async function saveRmfAiScore(subId, tier) {
   S.config.rmfAiScores[subId] = tier;
   if (S.config._id) {
     await API.update('config', S.config._id, { rmfAiScores: S.config.rmfAiScores });
+  } else {
+    S.config._id = 'main-config';
+    await API.create('config', S.config);
+  }
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ISO/IEC 42001:2023 — AI Management System (AIMS) Assessment
+// ═══════════════════════════════════════════════════════════════════════════
+let iso42001View = 'assessment'; // 'assessment' or 'report'
+let iso42001ExpandedGroup = null;
+
+function _iso42001Scores() { return S.config.iso42001Scores || {}; }
+
+function _iso42001GroupScore(group) {
+  const scores = _iso42001Scores();
+  let total = 0, count = 0;
+  for (const ctrl of group.controls) {
+    const s = scores[ctrl.id];
+    if (s && s > 0) { total += s; count++; }
+  }
+  return count > 0 ? (total / count) : 0;
+}
+
+function pgIso42001() {
+  if (typeof ISO_42001 === 'undefined') return '<div class="page"><div class="empty"><p>ISO 42001 data not loaded. Please refresh the page.</p></div></div>';
+  const scores = _iso42001Scores();
+
+  const groupData = ISO_42001.groups.map(group => {
+    const score = _iso42001GroupScore(group);
+    const totalCtrls = group.controls.length;
+    let assessed = 0;
+    for (const ctrl of group.controls) { if (scores[ctrl.id] && scores[ctrl.id] > 0) assessed++; }
+    return { group, score, totalCtrls, assessed };
+  });
+
+  const totalCtrls = groupData.reduce((s, d) => s + d.totalCtrls, 0);
+  const assessedCtrls = groupData.reduce((s, d) => s + d.assessed, 0);
+  const overallScore = groupData.reduce((s, d) => s + d.score, 0) / (groupData.filter(d => d.score > 0).length || 1);
+
+  let html = '<div class="page">'
+    + '<div class="page-head"><div><h2>ISO/IEC 42001:2023 Assessment</h2><p>Assess maturity against the 38 Annex A reference controls of the AI Management System (AIMS) standard — 9 control sets (A.2 through A.10)</p></div></div>'
+    + '<div class="tabs mb-24">'
+    + '<button class="tab-btn ' + (iso42001View === 'assessment' ? 'on' : '') + '" onclick="iso42001View=\'assessment\';render()">Assessment</button>'
+    + '<button class="tab-btn ' + (iso42001View === 'report' ? 'on' : '') + '" onclick="iso42001View=\'report\';render()">Maturity Report</button></div>';
+
+  if (iso42001View === 'report') {
+    html += _iso42001Report(groupData, overallScore, totalCtrls, assessedCtrls);
+  } else {
+    html += _iso42001Assessment(groupData, scores);
+  }
+  html += '</div>';
+  return html;
+}
+
+function _iso42001Report(groupData, overallScore, totalCtrls, assessedCtrls) {
+  const pct = totalCtrls ? Math.round(assessedCtrls / totalCtrls * 100) : 0;
+
+  let html = '<div class="grid g4 mb-24">'
+    + '<div class="card stat"><div class="stat-val" style="color:' + _tierColor(overallScore) + '">' + overallScore.toFixed(1) + '</div><div class="stat-lbl">Overall Maturity</div><div class="stat-sub">' + _tierLabel(overallScore) + '</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--accent)">' + assessedCtrls + '/' + totalCtrls + '</div><div class="stat-lbl">Assessed</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--blue)">' + pct + '%</div><div class="stat-lbl">Complete</div></div>'
+    + '<div class="card stat"><div class="stat-val" style="color:var(--t2)">4.0</div><div class="stat-lbl">Target (Optimized)</div></div></div>';
+
+  html += '<div class="card mb-24"><div class="card-head"><h3>Control Set Maturity</h3><span style="font-size:11px;color:var(--t4)">Annex A reference control sets</span></div>';
+  for (const d of groupData) {
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
+      + '<div style="min-width:90px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + d.group.color + '"></span><span style="font-size:13px;font-weight:600;color:var(--t1)">' + d.group.id + '</span></div>'
+      + '<div style="min-width:220px;font-size:12px;color:var(--t2)">' + esc(d.group.name) + '</div>'
+      + '<div class="pbar" style="flex:1;height:8px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.group.color + '"></div></div>'
+      + '<div style="min-width:60px;text-align:right;font-family:var(--mono);font-size:13px;font-weight:700;color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="min-width:90px;font-size:11px;color:var(--t3)">' + _tierLabel(d.score) + '</div></div>';
+  }
+  html += '</div>';
+
+  const scores = _iso42001Scores();
+  html += '<div class="card"><div class="card-head"><h3>Control Detail</h3></div>'
+    + '<div class="table-wrap" style="border:none"><table><thead><tr><th>ID</th><th>Control</th><th>Tier</th><th>Maturity</th></tr></thead><tbody>';
+  for (const d of groupData) {
+    html += '<tr><td colspan="4" style="background:var(--bg-2);font-weight:700;color:' + d.group.color + ';font-size:12px;text-transform:uppercase;letter-spacing:1px;padding:10px 18px">' + d.group.id + ' — ' + esc(d.group.name) + '</td></tr>';
+    for (const ctrl of d.group.controls) {
+      const s = scores[ctrl.id] || 0;
+      const tierBadge = s > 0 ? '<span class="badge ' + (s >= 4 ? 'b-low' : s >= 3 ? 'b-info' : s >= 2 ? 'b-medium' : 'b-critical') + '">' + _tierLabel(s) + '</span>' : '<span style="color:var(--t4);font-size:11px">Not assessed</span>';
+      html += '<tr><td class="cell-mono" style="padding-left:28px;color:var(--t2);font-size:11px">' + ctrl.id + '</td>'
+        + '<td style="font-size:12px;color:var(--t1)">' + esc(ctrl.name) + '</td>'
+        + '<td class="cell-mono" style="font-weight:700;color:' + _tierColor(s) + '">' + (s > 0 ? s : '—') + '</td>'
+        + '<td>' + tierBadge + '</td></tr>';
+    }
+  }
+  html += '</tbody></table></div></div>';
+
+  if (ISO_42001.ref) {
+    html += '<div style="margin-top:16px;font-size:13px"><a href="' + esc(ISO_42001.ref) + '" target="_blank" style="color:var(--accent)">ISO/IEC 42001:2023 Reference →</a></div>';
+  }
+  return html;
+}
+
+function _iso42001Assessment(groupData, scores) {
+  let html = '';
+  for (const d of groupData) {
+    const isExpanded = iso42001ExpandedGroup === d.group.id;
+    const pctBar = Math.round(d.score / 4 * 100);
+    html += '<div class="card mb-24" style="border-left:3px solid ' + d.group.color + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:4px 0" onclick="iso42001ExpandedGroup=iso42001ExpandedGroup===\'' + d.group.id + '\'?null:\'' + d.group.id + '\';render()">'
+      + '<div><div style="font-size:16px;font-weight:700;color:' + d.group.color + '">' + d.group.id + ' — ' + esc(d.group.name) + '</div>'
+      + '<div style="font-size:12px;color:var(--t3);margin-top:4px">' + esc(d.group.desc || '') + '</div></div>'
+      + '<div style="text-align:right;min-width:100px"><div style="font-size:24px;font-weight:700;font-family:var(--mono);color:' + _tierColor(d.score) + '">' + d.score.toFixed(1) + '</div>'
+      + '<div style="font-size:10px;color:var(--t3)">' + _tierLabel(d.score) + ' · ' + d.assessed + '/' + d.totalCtrls + '</div></div></div>'
+      + '<div class="pbar" style="height:4px;margin-top:10px"><div class="pfill" style="width:' + pctBar + '%;background:' + d.group.color + '"></div></div>';
+
+    if (isExpanded) {
+      for (const ctrl of d.group.controls) {
+        const s = scores[ctrl.id] || 0;
+        html += '<div style="padding:14px 16px;border-top:1px solid var(--border-0);margin-top:10px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;gap:14px">'
+          + '<div style="flex:1"><span style="font-family:var(--mono);font-size:11px;color:var(--t3)">' + ctrl.id + '</span>'
+          + '<div style="font-size:13px;font-weight:600;color:var(--t1);margin-top:2px">' + esc(ctrl.name) + '</div>'
+          + (ctrl.desc ? '<div style="font-size:11px;color:var(--t3);margin-top:4px;line-height:1.6">' + esc(ctrl.desc) + '</div>' : '')
+          + '</div>'
+          + '<select class="ctrl-status-sel" style="min-width:150px" onchange="saveIso42001Score(\'' + ctrl.id + '\',+this.value)">'
+          + '<option value="0"' + (s === 0 ? ' selected' : '') + '>Not Assessed</option>'
+          + '<option value="1"' + (s === 1 ? ' selected' : '') + '>Tier 1 — Initial</option>'
+          + '<option value="2"' + (s === 2 ? ' selected' : '') + '>Tier 2 — Defined</option>'
+          + '<option value="3"' + (s === 3 ? ' selected' : '') + '>Tier 3 — Managed</option>'
+          + '<option value="4"' + (s === 4 ? ' selected' : '') + '>Tier 4 — Optimized</option></select></div>';
+
+        if (ctrl.questions && ctrl.questions.length > 0) {
+          html += '<div style="padding-left:8px;border-left:2px solid var(--border-0);margin-top:6px">';
+          for (const q of ctrl.questions) {
+            html += '<div style="font-size:12px;color:var(--t2);padding:3px 0;line-height:1.6">• ' + esc(q) + '</div>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+async function saveIso42001Score(ctrlId, tier) {
+  if (!S.config.iso42001Scores) S.config.iso42001Scores = {};
+  S.config.iso42001Scores[ctrlId] = tier;
+  if (S.config._id) {
+    await API.update('config', S.config._id, { iso42001Scores: S.config.iso42001Scores });
   } else {
     S.config._id = 'main-config';
     await API.create('config', S.config);
