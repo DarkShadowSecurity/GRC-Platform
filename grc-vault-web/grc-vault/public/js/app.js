@@ -894,7 +894,7 @@ async function toggleActiveFramework(fw) {
     await API.update('config', S.config._id, S.config);
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
   render();
 }
@@ -1669,10 +1669,10 @@ async function saveCSF2Score(subId, tier) {
   if (!S.config.csf2Scores) S.config.csf2Scores = {};
   S.config.csf2Scores[subId] = tier;
   if (S.config._id) {
-    await API.update('config', S.config._id, { csf2Scores: S.config.csf2Scores });
+    await API.update('config', S.config._id, { csf2ScoresJson: JSON.stringify(S.config.csf2Scores) });
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
   render();
 }
@@ -1864,10 +1864,10 @@ async function saveRmfAiScore(subId, tier) {
   if (!S.config.rmfAiScores) S.config.rmfAiScores = {};
   S.config.rmfAiScores[subId] = tier;
   if (S.config._id) {
-    await API.update('config', S.config._id, { rmfAiScores: S.config.rmfAiScores });
+    await API.update('config', S.config._id, { rmfAiScoresJson: JSON.stringify(S.config.rmfAiScores) });
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
   render();
 }
@@ -2012,10 +2012,10 @@ async function saveIso42001Score(ctrlId, tier) {
   if (!S.config.iso42001Scores) S.config.iso42001Scores = {};
   S.config.iso42001Scores[ctrlId] = tier;
   if (S.config._id) {
-    await API.update('config', S.config._id, { iso42001Scores: S.config.iso42001Scores });
+    await API.update('config', S.config._id, { iso42001ScoresJson: JSON.stringify(S.config.iso42001Scores) });
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
   render();
 }
@@ -2044,10 +2044,10 @@ async function _saveSSP(field, value) {
   if (!S.config.sspData) S.config.sspData = {};
   S.config.sspData[field] = value;
   if (S.config._id) {
-    await API.update('config', S.config._id, { sspData: S.config.sspData });
+    await API.update('config', S.config._id, { sspDataJson: JSON.stringify(S.config.sspData) });
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
 }
 
@@ -2057,10 +2057,10 @@ async function _saveSSPCtrl(controlId, field, value) {
   if (!S.config.sspData.controls[controlId]) S.config.sspData.controls[controlId] = {};
   S.config.sspData.controls[controlId][field] = value;
   if (S.config._id) {
-    await API.update('config', S.config._id, { sspData: S.config.sspData });
+    await API.update('config', S.config._id, { sspDataJson: JSON.stringify(S.config.sspData) });
   } else {
     S.config._id = 'main-config';
-    await API.create('config', S.config);
+    await API.create('config', _cfgPersistShape(S.config));
   }
 }
 
@@ -3510,11 +3510,30 @@ function logout() {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// Parse JSON-stringified config fields. We store maturity scores and SSP data
+// as JSON strings because NeDB rejects field names containing dots (subcategory
+// IDs like "GV.OC-01" or "A.6.2.4" would otherwise be illegal map keys).
+function _cfgParseJSON(s) { try { return s ? JSON.parse(s) : {}; } catch { return {}; } }
+function _cfgPersistShape(cfg) {
+  const { csf2Scores, rmfAiScores, iso42001Scores, sspData, ...rest } = cfg || {};
+  return {
+    ...rest,
+    csf2ScoresJson: JSON.stringify(csf2Scores || {}),
+    rmfAiScoresJson: JSON.stringify(rmfAiScores || {}),
+    iso42001ScoresJson: JSON.stringify(iso42001Scores || {}),
+    sspDataJson: JSON.stringify(sspData || {})
+  };
+}
+
 async function loadData() {
   const [a,r,c,p,f] = await Promise.all([API.get('audits'),API.get('risks'),API.get('controls'),API.get('policies'),API.get('findings')]);
   S.audits=a.data||[]; S.risks=r.data||[]; S.controls=c.data||[]; S.policies=p.data||[]; S.findings=f.data||[];
   const cfgs = await API.get('config');
   S.config = (cfgs.data||[])[0] || {};
+  S.config.csf2Scores     = _cfgParseJSON(S.config.csf2ScoresJson);
+  S.config.rmfAiScores    = _cfgParseJSON(S.config.rmfAiScoresJson);
+  S.config.iso42001Scores = _cfgParseJSON(S.config.iso42001ScoresJson);
+  S.config.sspData        = _cfgParseJSON(S.config.sspDataJson);
 }
 
 async function init() {

@@ -295,17 +295,26 @@ async function seed() {
 
   // Update the main config doc with maturity scores and the active-framework set
   // so the dashboard maturity widget and the per-framework pages light up.
+  // Maturity scores and SSP data are JSON-stringified because NeDB rejects field
+  // names with dots (subcategory IDs like "GV.OC-01" or "A.6.2.4").
   const cfgRes = await get("/api/config");
   const existing = (cfgRes.data || []).find(c => c._id === "main-config");
   const cfgPayload = {
     activeFrameworks: ["NIST CSF","NIST CSF 2.0","ISO 27001","ISO 42001","SOC 2","GDPR","NIST 800-53 Rev 5"],
-    csf2Scores, rmfAiScores, iso42001Scores, sspData
+    csf2ScoresJson:     JSON.stringify(csf2Scores),
+    rmfAiScoresJson:    JSON.stringify(rmfAiScores),
+    iso42001ScoresJson: JSON.stringify(iso42001Scores),
+    sspDataJson:        JSON.stringify(sspData)
   };
+  let cfgRespOk;
   if (existing) {
-    await put("/api/config/main-config", cfgPayload);
+    const r = await put("/api/config/main-config", cfgPayload);
+    cfgRespOk = r && r.ok;
   } else {
-    await post("/api/config", { _id: "main-config", ...cfgPayload });
+    const r = await post("/api/config", { _id: "main-config", ...cfgPayload });
+    cfgRespOk = r && r.ok;
   }
+  if (!cfgRespOk) throw new Error("Config update did not return ok=true — server logs may have details");
   console.log(`  ✓ Maturity scored: CSF2=${Object.keys(csf2Scores).length}, RMF AI=${Object.keys(rmfAiScores).length}, ISO 42001=${Object.keys(iso42001Scores).length}; SSP populated`);
 
   console.log("\n  ✅ Seed complete! Refresh the browser to see data.\n");
